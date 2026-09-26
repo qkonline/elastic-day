@@ -22,8 +22,8 @@ class Gestures {
   pull = $state(0);
   dragging = $state(false);
   refreshing = $state(false);
-  /** Which side the next day slides in from after a swipe; null for other ways of changing day. */
-  enter = $state<'left' | 'right' | null>(null);
+  /** Where the day was when a swipe let go, so the slide to the next day starts from there. */
+  releaseDx = 0;
 }
 
 export const gestures = new Gestures();
@@ -63,7 +63,7 @@ export function dayGestures(p: Planner) {
       }
       if (mode === 'swipe') {
         if (e.cancelable) e.preventDefault();
-        gestures.dx = dx * 0.5;
+        gestures.dx = dx;
       } else if (mode === 'pull') {
         if (e.cancelable) e.preventDefault();
         gestures.pull = Math.max(0, Math.min(PULL_MAX, dy * 0.5));
@@ -75,15 +75,13 @@ export function dayGestures(p: Planner) {
       tracking = false;
       gestures.dragging = false;
       if (mode === 'swipe') {
-        const travel = gestures.dx * 2;
-        gestures.dx = 0;
+        const travel = gestures.dx;
         const quick = Date.now() - t0 < FLICK_MS;
         if (Math.abs(travel) >= SWIPE || (quick && Math.abs(travel) >= FLICK)) {
-          // Finger moves left → the next day comes in from the right.
-          const next = travel < 0 ? 1 : -1;
-          gestures.enter = next > 0 ? 'right' : 'left';
-          void p.switchDay(addDays(p.viewKey, next));
-        }
+          // Finger moves left → the next day. Hold the day where it is until the slide takes over.
+          gestures.releaseDx = travel;
+          void p.switchDay(addDays(p.viewKey, travel < 0 ? 1 : -1)).then(() => (gestures.dx = 0));
+        } else gestures.dx = 0;
       } else if (mode === 'pull') {
         if (gestures.pull >= PULL) {
           gestures.refreshing = true;

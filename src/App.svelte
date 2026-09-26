@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
   import { MediaQuery } from 'svelte/reactivity';
-  import { fly } from 'svelte/transition';
   import AddTask from './components/AddTask.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
@@ -17,18 +17,45 @@
   import Timeline from './components/Timeline.svelte';
   import WeekStrip from './components/WeekStrip.svelte';
   import { dayGestures, gestures } from './lib/gestures.svelte';
-  import { planner as P } from './lib/planner.svelte';
+  import { planner as P, type Sheet as SheetState } from './lib/planner.svelte';
   import { reducedMotion } from './lib/ui.svelte';
 
   const prefersDark = new MediaQuery('(prefers-color-scheme: dark)', false);
-  // A day reached by swiping slides in from the side the finger came from.
-  const slideIn = () =>
-    gestures.enter && !reducedMotion.current
-      ? { x: gestures.enter === 'right' ? 48 : -48, duration: 200 }
-      : { duration: 0 };
-  const shift = $derived(
-    gestures.dx || gestures.pull ? `translate(${gestures.dx}px, ${gestures.pull * 0.6}px)` : undefined,
-  );
+
+  // Changing day is a slideshow: the day on screen slides out one way while the next slides in
+  // right behind it, edge to edge. A later day comes in from the right, an earlier one from the
+  // left. After a swipe the motion starts from wherever the finger let go.
+  const DAY_MS = 320;
+  let slide = { dir: 1, from: 0 };
+  let shownKey = untrack(() => P.viewKey);
+  $effect.pre(() => {
+    const key = P.viewKey;
+    untrack(() => {
+      if (key === shownKey) return;
+      slide = { dir: key > shownKey ? 1 : -1, from: gestures.releaseDx };
+      shownKey = key;
+      gestures.releaseDx = 0;
+    });
+  });
+  // Both run on the same linear clock with the easing applied here, so the two days stay joined.
+  function dayIn(node: HTMLElement) {
+    if (reducedMotion.current) return { duration: 0 };
+    const start = slide.dir * node.offsetWidth + slide.from;
+    return { duration: DAY_MS, css: (t: number) => `transform: translateX(${start * (1 - cubicOut(t))}px)` };
+  }
+  function dayOut(node: HTMLElement) {
+    if (reducedMotion.current) return { duration: 0 };
+    const { from } = slide;
+    const end = -slide.dir * node.offsetWidth;
+    return {
+      duration: DAY_MS,
+      css: (_t: number, u: number) => `transform: translateX(${from + (end - from) * cubicOut(u)}px)`,
+    };
+  }
+
+  // A sheet keeps its contents while it animates away, after P.sheet has already been cleared.
+  let lastSheet: SheetState | null = null;
+  const shownSheet = $derived.by(() => (P.sheet ? (lastSheet = P.sheet) : lastSheet));
   const theme = $derived(
     P.settings.themePref === 'match' ? (prefersDark.current ? 'dark' : 'light') : P.settings.themePref,
   );
@@ -87,9 +114,18 @@
     <WeekStrip />
     <RunningElsewhere />
     <NotifyPrompt />
-    <main class:settling={!gestures.dragging} style:transform={shift} style:opacity={1 - Math.abs(gestures.dx) / 400}>
+    <main
+      class:settling={!gestures.dragging}
+      style:transform={gestures.pull ? `translateY(${gestures.pull * 0.6}px)` : undefined}
+    >
       {#key P.viewKey}
-        <div in:fly={slideIn()} onintroend={() => (gestures.enter = null)}>
+        <div
+          class="day"
+          class:settling={!gestures.dragging}
+          style:transform={gestures.dx ? `translateX(${gestures.dx}px)` : undefined}
+          in:dayIn
+          out:dayOut
+        >
           {#if P.day.items.length === 0}
             <EmptyState />
           {:else}
@@ -106,23 +142,23 @@
     <span class="plus">+</span><span>Add task</span>
   </button>
 
-  {#if P.sheet}
-    {#key P.sheet.type === 'task' ? 'task-' + P.sheet.id : P.sheet.type}
+  {#if P.sheet && shownSheet}
+    {#key shownSheet.type === 'task' ? 'task-' + shownSheet.id : shownSheet.type}
       <Sheet
-        variant={P.sheet.type === 'add'
+        variant={shownSheet.type === 'add'
           ? 'form'
-          : P.sheet.type === 'hours' || P.sheet.type === 'install'
+          : shownSheet.type === 'hours' || shownSheet.type === 'install'
             ? 'small'
             : 'full'}
-        label={LABELS[P.sheet.type]}
+        label={LABELS[shownSheet.type]}
       >
-        {#if P.sheet.type === 'task'}
-          <TaskSheet id={P.sheet.id} />
-        {:else if P.sheet.type === 'add'}
+        {#if shownSheet.type === 'task'}
+          <TaskSheet id={shownSheet.id} />
+        {:else if shownSheet.type === 'add'}
           <AddTask />
-        {:else if P.sheet.type === 'hours'}
+        {:else if shownSheet.type === 'hours'}
           <DayHours />
-        {:else if P.sheet.type === 'install'}
+        {:else if shownSheet.type === 'install'}
           <InstallGuide />
         {:else}
           <Settings />
@@ -135,10 +171,18 @@
 <div class="sr-only" aria-live="polite">{P.announce}</div>
 
 <style>
-  main.settling {
-    transition:
-      transform 200ms ease,
-      opacity 200ms ease;
+  /* Days overlap in one grid cell while one slides out and the next slides in. */
+  main {
+    display: grid;
+    overflow-x: clip;
+  }
+  .day {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+  main.settling,
+  .day.settling {
+    transition: transform 220ms ease;
   }
   .page {
     display: block;

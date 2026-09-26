@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
   import { fade } from 'svelte/transition';
   import { planner as P } from '../lib/planner.svelte';
   import { desktop, reducedMotion } from '../lib/ui.svelte';
@@ -23,6 +24,29 @@
           ? 'bottom'
           : 'bottom tall',
   );
+
+  // Bottom sheets slide up from the bottom of the screen, the side panel in from the right, and
+  // dialogs fade and grow slightly. Leaving plays the same motion backwards (an ease-out curve
+  // played in reverse speeds up as it goes, which suits things leaving the screen).
+  const IN_MS = 300;
+  const OUT_MS = 220;
+  function motion(node: Element, { leaving = false } = {}) {
+    const duration = reducedMotion.current ? 0 : leaving ? OUT_MS : IN_MS;
+    const bottom = node.classList.contains('bottom');
+    const side = node.classList.contains('side');
+    return {
+      duration,
+      easing: cubicOut,
+      css: (t: number) =>
+        bottom
+          ? `transform: translateY(${(1 - t) * 100}%)`
+          : side
+            ? `transform: translateX(${(1 - t) * 100}%)`
+            : `opacity: ${t}; transform: translate(-50%, -50%) scale(${0.96 + 0.04 * t})`,
+    };
+  }
+  const scrimFade = (node: Element, { leaving = false } = {}) =>
+    fade(node, { duration: reducedMotion.current ? 0 : leaving ? OUT_MS : IN_MS });
 
   // Move focus into the sheet when it opens and hand it back to whatever opened it on close.
   onMount(() => {
@@ -57,7 +81,8 @@
   class="scrim"
   onclick={() => P.closeSheet()}
   aria-hidden="true"
-  in:fade|global={{ duration: reducedMotion.current ? 0 : 200 }}
+  in:scrimFade|global
+  out:scrimFade|global={{ leaving: true }}
 ></div>
 <div
   class="panel {shape}"
@@ -67,7 +92,8 @@
   tabindex="-1"
   bind:this={panel}
   onkeydown={trap}
-  in:fade|global={{ duration: reducedMotion.current ? 0 : 200 }}
+  in:motion|global
+  out:motion|global={{ leaving: true }}
 >
   {#if !desktop.current && variant !== 'small'}
     <div class="handle"><span></span></div>

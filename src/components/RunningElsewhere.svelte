@@ -6,14 +6,21 @@
   // A timer left running (or paused) on another day, e.g. started last night.
   const e = $derived(P.elsewhere);
   const left = $derived(e ? (e.it.min - worked(e.it, minutesInto(e.key, P.clock))) * 60 : 0);
-  const when = $derived(!e ? '' : dayDiff(P.today, e.key) === -1 ? 'yesterday' : shortDate(keyDate(e.key)));
+  // Planning another day while today's timer runs, or a timer left going on an earlier day.
+  const status = $derived.by(() => {
+    if (!e) return '';
+    const paused = e.it.status === 'paused';
+    if (e.key === P.today) return paused ? 'Paused today' : 'Running today';
+    const when = dayDiff(P.today, e.key) === -1 ? 'yesterday' : shortDate(keyDate(e.key));
+    return `${paused ? 'Paused' : 'Still running'} from ${when}`;
+  });
 </script>
 
 {#if e}
   <div class="banner" class:paused={e.it.status === 'paused'} class:over={left < 0} role="status">
     <div class="text">
       <span class="t">{e.it.title}</span>
-      <span class="s">{e.it.status === 'paused' ? 'Paused' : 'Still running'} from {when}</span>
+      <span class="s">{status}</span>
     </div>
     <span class="count">{left >= 0 ? cd(left) : '+' + cd(-left)}</span>
     <button class="go" onclick={() => P.switchDay(e.key)}>Go to it</button>
