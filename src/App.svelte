@@ -187,6 +187,8 @@
   .page {
     display: block;
     max-width: none;
+    /* Fill the screen even when the day is short, so a swipe anywhere changes day. */
+    min-height: 100dvh;
     margin: 0 auto;
     padding: 0 0 calc(96px + env(safe-area-inset-bottom));
     box-sizing: border-box;
