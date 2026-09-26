@@ -1,6 +1,6 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { hhmm, hm, keyDate, shortDate } from '../lib/time';
+  import { hhmm, hm, keyDate, shortDate, weekdayLong } from '../lib/time';
   import type { Hue, Kind } from '../lib/types';
   import Fields, { KINDS } from './Fields.svelte';
 
@@ -8,6 +8,8 @@
   let min = $state(30);
   let kind = $state<Kind>('task');
   let hue = $state<Hue | null>(null);
+  let repeat = $state('Once');
+  const repeats = $derived(['Once', 'Every day', 'Weekdays', 'Every ' + weekdayLong(keyDate(P.viewKey))]);
   // Fixed items default to the next quarter hour, half an hour from now.
   const defaultFixed = (Math.ceil((P.nowToday() + 30) / 15) * 15) % 1440;
   let fixedStr = $state(hhmm(defaultFixed));
@@ -19,7 +21,7 @@
   function add() {
     if (!ok) return;
     const fixedAt = kind === 'fixed' ? (fixedStr ? hm(fixedStr) : defaultFixed) : null;
-    P.addTask({ title: title.trim(), min: Math.max(1, min), kind, hue: sel, fixedAt });
+    P.addTask({ title: title.trim(), min: Math.max(1, min), kind, hue: sel, fixedAt, repeat });
   }
   const enter = (e: KeyboardEvent) => e.key === 'Enter' && !e.isComposing && add();
 </script>
@@ -48,6 +50,17 @@
         <input class="time" type="time" aria-label="Time" bind:value={fixedStr} />
       {/if}
     </div>
+  </div>
+  <div class="group">
+    <span class="label">Repeats</span>
+    <div class="row">
+      {#each repeats as r (r)}
+        <button class="chip" aria-pressed={repeat === r} onclick={() => (repeat = r)}>{r}</button>
+      {/each}
+    </div>
+    {#if repeat !== 'Once'}
+      <span class="hint">It'll also be added to the matching days after this one.</span>
+    {/if}
   </div>
   {#if kind !== 'buffer'}
     <Fields field="colour" hue={sel} onHue={(h) => (hue = h)} ringBg="var(--bg)" />
@@ -79,6 +92,7 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 6px 20px 16px;
     display: flex;
     flex-direction: column;
@@ -113,6 +127,10 @@
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
+  }
+  .hint {
+    font: 400 12px/1.4 var(--font);
+    color: var(--muted);
   }
   .time {
     height: 40px;

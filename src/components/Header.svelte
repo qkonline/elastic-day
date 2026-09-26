@@ -1,6 +1,6 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { dayDiff, fNZ, keyDate, monthShort, shortDate, weekdayShort } from '../lib/time';
+  import { dayDiff, fNZ, keyDate, monthShort, shortDate, weekdayLong } from '../lib/time';
 
   const vDate = $derived(keyDate(P.viewKey));
   const diff = $derived(dayDiff(P.today, P.viewKey));
@@ -13,7 +13,14 @@
           ? 'Yesterday'
           : `${vDate.getDate()} ${monthShort(vDate)}`,
   );
-  const small = $derived(Math.abs(diff) <= 1 ? shortDate(vDate) : weekdayShort(vDate));
+  // Today, tomorrow and yesterday show the date; further away, say how far you are from today.
+  const small = $derived(
+    Math.abs(diff) <= 1
+      ? shortDate(vDate)
+      : diff > 0
+        ? `${weekdayLong(vDate)}, in ${diff} days`
+        : `${weekdayLong(vDate)}, ${-diff} days ago`,
+  );
   const started = $derived(P.day.dayStarted != null);
   const showStart = $derived(
     P.isToday && !started && P.day.items.some((i) => i.status === 'todo' && i.kind !== 'buffer'),
@@ -22,18 +29,18 @@
 
 <header class="header">
   <div class="left">
-    <div class="small">
-      {small}
-      {#if !P.isToday}<button class="back hit" style:--hit-y="14px" onclick={() => P.backToToday()}
-          >Back to today</button
-        >{/if}
-    </div>
+    <div class="small">{small}</div>
     <h1 class="title">{dayName}</h1>
   </div>
   {#if showStart}
     <button class="startday" onclick={() => P.startDay()}><span>▶</span>Start my day</button>
   {:else if P.isToday && started}
     <span class="started">Day started at {fNZ(P.day.dayStarted!, P.settings.clock24)}</span>
+  {:else if !P.isToday}
+    <!-- The dot is the timeline's "now" marker: this takes you back to now. -->
+    <button class="today" aria-label="Back to today" onclick={() => P.backToToday()}
+      ><span class="now"></span>Today</button
+    >
   {/if}
   <button class="settings" aria-label="Settings" onclick={() => P.openSheet({ type: 'settings' })}>
     <span class="hex"><span class="hex-in"><span class="ring"></span></span></span>
@@ -65,20 +72,39 @@
     font: 400 13px/16px var(--font);
     height: 16px;
     color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .today {
+    height: var(--btn);
+    padding: 0 18px 0 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--raised);
+    color: var(--text);
+    font: 400 15px/1 var(--font);
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-  .back {
-    border: none;
-    background: transparent;
-    padding: 0;
-    height: 16px;
-    color: var(--grT);
-    font: 400 13px/16px var(--font);
+    gap: 9px;
     cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 3px;
+    flex: none;
+    transition:
+      border-color 240ms,
+      background 240ms;
+  }
+  .now {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--now);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--now) 22%, transparent);
+  }
+  @media (hover: hover) {
+    .today:hover {
+      border-color: var(--line);
+      background: var(--sunk);
+    }
   }
   .title {
     margin: 0;
@@ -113,7 +139,7 @@
     height: 44px;
     border-radius: 14px;
     border: none;
-    background: color-mix(in oklab, #818cf8 10%, var(--raised));
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -135,7 +161,15 @@
   .hex-in {
     width: 17px;
     height: 17px;
-    background: color-mix(in oklab, #818cf8 10%, var(--raised));
+    background: var(--bg);
+  }
+  @media (hover: hover) {
+    .settings:hover {
+      background: var(--sunk);
+    }
+    .settings:hover .hex-in {
+      background: var(--sunk);
+    }
   }
   .ring {
     width: 7px;

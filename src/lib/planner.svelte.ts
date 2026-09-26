@@ -543,10 +543,13 @@ export class Planner {
 
   // ---------- editing ----------
 
-  addTask(o: { title: string; min: number; kind: Kind; hue: Hue; fixedAt: number | null }): void {
-    const it = A.newItem({ ...o, fixedAt: o.kind === 'fixed' ? o.fixedAt : null });
+  addTask(o: { title: string; min: number; kind: Kind; hue: Hue; fixedAt: number | null; repeat?: string }): void {
+    const { repeat, ...fields } = o;
+    const it = A.newItem({ ...fields, fixedAt: o.kind === 'fixed' ? o.fixedAt : null });
     this.sheet = null;
     this.update((d) => A.addItem(d, it), `Added ${it.title}`);
+    // A repeating task becomes a series straight away, like choosing a repeat in the task sheet.
+    if (repeat && repeat !== 'Once') void this.setRepeat(it.id, repeat);
   }
 
   /** Edit fields. Series fields on a repeating item also flow to later days not yet started. */

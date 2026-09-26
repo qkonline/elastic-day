@@ -230,6 +230,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: 0 16px calc(28px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;

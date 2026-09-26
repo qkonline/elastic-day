@@ -164,6 +164,16 @@ describe('Planner', () => {
     expect(q.elsewhere).toBeNull();
   });
 
+  it('can make a new task repeat from the start', async () => {
+    const p = await boot();
+    p.addTask({ title: 'Stretch', min: 10, kind: 'task', hue: 'lime', fixedAt: null, repeat: 'Every day' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(byTitle(p, 'Stretch')).toMatchObject({ repeat: 'Every day' });
+    expect(byTitle(p, 'Stretch').seriesId).toBeTruthy();
+    await p.switchDay(TOMORROW);
+    expect(p.day.items.map((i) => i.title)).toEqual(['Stretch']);
+  });
+
   it('keeps the week strip on the week of the day shown', async () => {
     const p = await boot();
     await p.switchDay('2026-09-28'); // next Monday, e.g. swiping on from Sunday
