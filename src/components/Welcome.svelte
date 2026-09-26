@@ -42,7 +42,6 @@
             Add what you want to do and how long it takes. Elastic Day works out the times, and when something runs
             long, the rest of your day moves with it.
           </p>
-          <p class="lead">Two quick questions, so it fits the way your days run.</p>
           <div class="actions">
             <button class="pri" onclick={() => (step = 1)}>Get started</button>
             <button class="text" onclick={() => finish()}>Skip for now</button>

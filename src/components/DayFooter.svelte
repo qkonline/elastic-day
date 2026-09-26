@@ -1,42 +1,13 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { dL, fNZ, fT, keyDate, shortDate } from '../lib/time';
+  import { keyDate, shortDate } from '../lib/time';
   import DisarmBar from './DisarmBar.svelte';
 
-  const c24 = $derived(P.settings.clock24);
-  const d = $derived(P.day);
-  // A time after midnight belongs to the night after this day.
-  const late = (m: number) => (m >= 1440 ? ' (next day)' : '');
-  const flexWaiting = $derived(P.settings.flexStart && P.isToday && d.dayStarted == null);
   const count = $derived(P.day.items.length);
   const tasks = $derived(`${count} task${count === 1 ? '' : 's'}`);
   const dateLabel = $derived(shortDate(keyDate(P.viewKey)));
   const armed = $derived(P.armed('clear', 'day'));
 </script>
-
-<div class="hours">
-  <span class="hrs">
-    <span class="line">
-      {#if d.dayEnded != null && d.dayStarted != null}
-        Day <span class="val">{fNZ(d.dayStarted, c24)} – {fT(d.dayEnded, c24)}{late(d.dayEnded)}</span>
-      {:else if d.dayStarted != null}
-        Started <span class="val">{fNZ(d.dayStarted, c24)}</span>, wrap up by
-        <span class="val">{fT(d.wrap, c24)}{late(d.wrap)}</span>
-      {:else if flexWaiting}
-        Your day: <span class="val">{dL(P.settings.dayLength)} from Start my day</span>
-      {:else}
-        Day <span class="val">{fT(d.dayStart, c24)} – {fT(d.wrap, c24)}{late(d.wrap)}</span>
-      {/if}
-    </span>
-    <button
-      class="edit hit"
-      style:--hit-x="4px"
-      style:--hit-y="4px"
-      aria-label="Edit day hours"
-      onclick={() => P.openSheet({ type: 'hours' })}>✎</button
-    >
-  </span>
-</div>
 
 {#if count}
   <div class="clear">
@@ -62,42 +33,8 @@
 {/if}
 
 <style>
-  .hours {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 18px;
-    padding: 16px var(--px) 20px;
-    font: 400 13px/1 var(--font);
-    color: var(--muted);
-  }
-  .hrs {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
-  }
-  .line {
-    line-height: 1.5;
-  }
-  .val {
-    color: var(--text);
-  }
-  .edit {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--raised);
-    color: var(--muted);
-    font: 400 15px/1 var(--font);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
   .clear {
-    margin: 0 var(--px) 24px;
+    margin: 20px var(--px) 24px;
     padding: 18px 0 0;
     border-top: 1px solid var(--border);
     display: flex;

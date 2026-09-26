@@ -282,39 +282,6 @@
     flex-direction: column;
     gap: 4px;
   }
-  .switch {
-    width: 52px;
-    height: 32px;
-    border-radius: 99px;
-    border: none;
-    background: var(--line);
-    position: relative;
-    cursor: pointer;
-    flex: none;
-    padding: 0;
-    transition: background 160ms;
-  }
-  .switch.on {
-    background: var(--text);
-  }
-  .switch span {
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 26px;
-    height: 26px;
-    border-radius: 99px;
-    background: var(--raised);
-    transition: left 160ms;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  }
-  .switch.on span {
-    left: 23px;
-  }
-  .switch:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
   .self {
     align-self: flex-start;
   }

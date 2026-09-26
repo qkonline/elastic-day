@@ -3,7 +3,7 @@
 import { isActive, isMissed, isPartial, pausedTotal, worked, type Row } from './schedule';
 import { apOf, cd, dL, fT, fTs, keyDate, shortDate } from './time';
 import type { Day, Item, Status } from './types';
-import { HUES } from './types';
+import { hueColor } from './types';
 
 // Running colour: orange ring, orange countdown text while within time (red once over).
 export const RUN = '#fb923c';
@@ -178,7 +178,7 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
     ap2: showEnd ? suffix(r.end, c.clock24) : null,
     fixedAt:
       it.kind === 'fixed' && it.fixedAt != null ? fT(it.fixedAt, c.clock24) + (it.fixedAt >= 1440 ? ' +1' : '') : null,
-    hue: HUES[it.hue] ?? HUES.cyan,
+    hue: hueColor(it.hue),
     aStart: s === 'todo' && c.isToday && !missed && !pBuf && it.kind !== 'buffer',
     aCheck: s === 'done',
     aRestore: s === 'skipped' || (s === 'postponed' && it.startedAt == null),

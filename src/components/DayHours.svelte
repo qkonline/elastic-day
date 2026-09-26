@@ -2,28 +2,32 @@
   import { planner as P } from '../lib/planner.svelte';
   import { fNZ, hhmm, hm } from '../lib/time';
 
+  // Once the day has started only the wrap-up matters; before that, where the plan begins.
+  const started = P.day.dayStarted;
   let start = $state(hhmm(P.day.dayStart));
   let wrap = $state(hhmm(P.day.wrap));
+  const from = $derived(started ?? (start ? hm(start) : null));
   // A wrap-up at or before the start time means the day runs past midnight.
-  const nextDay = $derived(!!start && !!wrap && hm(wrap) <= hm(start));
+  const nextDay = $derived(from != null && !!wrap && hm(wrap) <= from % 1440);
   function save() {
     if (!start || !wrap) return;
-    const s = hm(start);
-    P.saveHours(s, hm(wrap) + (hm(wrap) <= s ? 1440 : 0));
+    P.saveHours(hm(start), hm(wrap) + (nextDay ? 1440 : 0));
   }
   const note = $derived(
-    P.isToday && P.day.dayStarted != null
-      ? `Today started at ${fNZ(P.day.dayStarted, P.settings.clock24)}. The start time is used when you plan other days.`
+    started != null
+      ? `You started at ${fNZ(started, P.settings.clock24)}. Anything that won't fit before your wrap-up gets flagged.`
       : 'The plan begins here until you tap Start my day. Going past the wrap-up time gets flagged, never blocked.',
   );
 </script>
 
 <div class="head">
-  <span class="h">Day hours</span>
+  <span class="h">{started != null ? 'Wrap-up time' : 'Day hours'}</span>
   <span class="note">{note}</span>
 </div>
 <div class="fields">
-  <label>Day starts <input type="time" data-autofocus bind:value={start} /></label>
+  {#if started == null}
+    <label>Day starts <input type="time" data-autofocus bind:value={start} /></label>
+  {/if}
   <label
     >Wrap up by
     <span class="w"

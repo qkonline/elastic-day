@@ -1,32 +1,57 @@
 <script lang="ts">
+  import { cubicOut } from 'svelte/easing';
+  import { slide } from 'svelte/transition';
   import { planner as P } from '../lib/planner.svelte';
   import { clockToDay, hhmm, hm, keyDate, shortDate, weekdayLong } from '../lib/time';
   import type { Hue, Kind } from '../lib/types';
+  import { reducedMotion } from '../lib/ui.svelte';
   import Fields, { KINDS } from './Fields.svelte';
 
+  // The name, type and colour are always shown. Timing and repeating are optional, each behind
+  // a switch that opens its choices in place. Without timing, a task is a check: ticked off on
+  // the checklist instead of timed.
   let title = $state('');
-  let min = $state(30);
   let kind = $state<Kind>('task');
   let hue = $state<Hue | null>(null);
-  let repeat = $state('Once');
-  const repeats = $derived(['Once', 'Every day', 'Weekdays', 'Every ' + weekdayLong(keyDate(P.viewKey))]);
+  let timed = $state(true);
+  let min = $state(30);
+  let repeats = $state(false);
+  let repeat = $state('Every day');
+  const repeatOpts = $derived(['Every day', 'Weekdays', 'Every ' + weekdayLong(keyDate(P.viewKey))]);
   // Fixed items default to the next quarter hour, half an hour from now (after midnight on a
   // late day, that's still this day).
   const defaultFixed = Math.ceil((P.nowToday() + 30) / 15) * 15;
   let fixedStr = $state(hhmm(defaultFixed));
-  // "No time": a check, ticked off on the checklist instead of timed.
-  const isCheck = $derived(min === 0);
   const late = $derived(Math.max(P.day.wrap, P.isToday ? P.n : 0));
 
   const ok = $derived(!!title.trim());
   const sel = $derived(hue ?? (kind === 'fixed' ? 'indigo' : 'cyan'));
   const placeholder = $derived(P.isToday ? 'What else today?' : `What else on ${shortDate(keyDate(P.viewKey))}?`);
+  const unfold = () => ({ duration: reducedMotion.current ? 0 : 220, easing: cubicOut });
+
+  // Buffers and fixed items always take time, so picking one turns timing on, and turning
+  // timing off makes it a plain task.
+  function setKind(k: Kind) {
+    kind = k;
+    if (k !== 'task') timed = true;
+  }
+  function setTimed(on: boolean) {
+    timed = on;
+    if (!on) kind = 'task';
+  }
 
   function add() {
     if (!ok) return;
-    const k = isCheck ? 'check' : kind;
+    const k = timed ? kind : 'check';
     const fixedAt = k === 'fixed' ? (fixedStr ? clockToDay(hm(fixedStr), late) : defaultFixed) : null;
-    P.addTask({ title: title.trim(), min: isCheck ? 0 : Math.max(1, min), kind: k, hue: sel, fixedAt, repeat });
+    P.addTask({
+      title: title.trim(),
+      min: timed ? Math.max(1, min) : 0,
+      kind: k,
+      hue: sel,
+      fixedAt,
+      repeat: repeats ? repeat : 'Once',
+    });
   }
   const enter = (e: KeyboardEvent) => e.key === 'Enter' && !e.isComposing && add();
 </script>
@@ -44,39 +69,67 @@
     {placeholder}
     aria-label="Task name"
   />
-  <Fields field="duration" {min} allowNone onMin={(m) => (min = m)} />
-  {#if !isCheck}
-    <div class="group">
-      <span class="label">Kind</span>
-      <div class="row">
-        {#each KINDS as [k, l] (k)}
-          <button class="chip" aria-pressed={kind === k} onclick={() => (kind = k)}>{l}</button>
-        {/each}
-        {#if kind === 'fixed'}
-          <input class="time" type="time" aria-label="Time" bind:value={fixedStr} />
-        {/if}
-      </div>
-    </div>
-  {/if}
+
   <div class="group">
-    <span class="label">Repeats</span>
+    <span class="label">Type</span>
     <div class="row">
-      {#each repeats as r (r)}
-        <button class="chip" aria-pressed={repeat === r} onclick={() => (repeat = r)}>{r}</button>
+      {#each KINDS as [k, l] (k)}
+        <button class="chip" aria-pressed={kind === k} onclick={() => setKind(k)}>{l}</button>
       {/each}
     </div>
-    {#if repeat !== 'Once'}
-      <span class="hint">It'll also be added to the matching days after this one.</span>
+    {#if kind === 'fixed'}
+      <label class="at" transition:slide={unfold()}>
+        <span>At</span>
+        <input class="time" type="time" aria-label="Time" bind:value={fixedStr} />
+      </label>
     {/if}
   </div>
-  {#if isCheck || kind !== 'buffer'}
-    <Fields field="colour" hue={sel} onHue={(h) => (hue = h)} ringBg="var(--bg)" />
+
+  {#if kind !== 'buffer'}
+    <div transition:slide={unfold()}>
+      <Fields field="colour" hue={sel} onHue={(h) => (hue = h)} ringBg="var(--bg)" />
+    </div>
   {/if}
+
+  <div class="props">
+    <div class="prop">
+      <button class="toggle" role="switch" aria-checked={timed} onclick={() => setTimed(!timed)}>
+        <span class="tt">
+          <span class="tn">Timed</span>
+          <span class="ts">{timed ? 'Start, pause and finish it with a timer' : 'No timer, just a box to tick'}</span>
+        </span>
+        <span class="switch" class:on={timed}><span></span></span>
+      </button>
+      {#if timed}
+        <div class="more" transition:slide={unfold()}>
+          <Fields field="duration" {min} showLabel={false} onMin={(m) => (min = m)} />
+        </div>
+      {/if}
+    </div>
+    <div class="prop">
+      <button class="toggle" role="switch" aria-checked={repeats} onclick={() => (repeats = !repeats)}>
+        <span class="tt">
+          <span class="tn">Repeats</span>
+          <span class="ts">{repeats ? 'Also added to the matching days after this one' : 'Just this once'}</span>
+        </span>
+        <span class="switch" class:on={repeats}><span></span></span>
+      </button>
+      {#if repeats}
+        <div class="more" transition:slide={unfold()}>
+          <div class="row">
+            {#each repeatOpts as r (r)}
+              <button class="chip" aria-pressed={repeat === r} onclick={() => (repeat = r)}>{r}</button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
 </div>
 <div class="foot">
   <span class="note">
-    {isCheck
-      ? "Goes on your checklist. Tick it off when it's done."
+    {!timed
+      ? 'Goes on your checklist, above the timeline.'
       : kind === 'fixed'
         ? 'Sits at its set time; the rest of the day flows around it.'
         : 'Goes to the end of the day. Drag it to reorder.'}
@@ -137,9 +190,58 @@
     gap: 6px;
     align-items: center;
   }
-  .hint {
-    font: 400 12px/1.4 var(--font);
+  .at {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 400 14px/1 var(--font);
     color: var(--muted);
+  }
+  /* Optional properties: one card, a row per switch, choices unfolding under their row. */
+  .props {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--raised);
+    overflow: hidden;
+  }
+  .prop + .prop {
+    border-top: 1px solid var(--border);
+  }
+  .toggle {
+    width: 100%;
+    min-height: 64px;
+    padding: 12px 14px 12px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .toggle:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: -4px;
+    border-radius: 12px;
+  }
+  .tt {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tn {
+    font: 400 15px/1.2 var(--font);
+  }
+  .ts {
+    font: 400 13px/1.35 var(--font);
+    color: var(--muted);
+    text-wrap: pretty;
+  }
+  .more {
+    padding: 0 16px 16px;
   }
   .time {
     height: 40px;

@@ -16,12 +16,13 @@
   // New task modal and the task sheet.
   import { untrack } from 'svelte';
   import { dL } from '../lib/time';
-  import { HUES, type Hue } from '../lib/types';
+  import { HUES, isHex, type Hue } from '../lib/types';
 
   let {
     field,
     min = 0,
     allowNone = false,
+    showLabel = true,
     onMin,
     hue,
     onHue,
@@ -31,6 +32,8 @@
     min?: number;
     /** Offer "No time": a check that's ticked off rather than timed (min 0). */
     allowNone?: boolean;
+    /** The New task sheet labels its duration itself (the Timed switch). */
+    showLabel?: boolean;
     onMin?: (m: number) => void;
     hue?: Hue;
     onHue?: (h: Hue) => void;
@@ -49,11 +52,18 @@
   function setCustom(h: number, m: number) {
     onMin?.(h * 60 + m || 5);
   }
+
+  // A colour of your own. Until one is picked the swatch shows the five task colours as a wheel.
+  const custom = $derived(hue && isHex(hue) ? hue : null);
+  let lastCustom = $state(untrack(() => (hue && isHex(hue) ? hue : '#f472b6')));
+  $effect(() => {
+    if (custom) lastCustom = custom;
+  });
 </script>
 
 {#if field === 'duration'}
   <div class="group">
-    <span class="label">How long</span>
+    {#if showLabel}<span class="label">How long</span>{/if}
     <div class="picks">
       {#each PICKS as m (m)}
         <button
@@ -113,6 +123,22 @@
         ></span>
       </button>
     {/each}
+    <label class="sw" title="Custom colour">
+      <span
+        class="wheel"
+        class:set={!!custom}
+        style:--pick={custom ?? 'transparent'}
+        style:box-shadow={custom ? `0 0 0 2px ${ringBg}, 0 0 0 4px var(--text)` : 'none'}
+      ></span>
+      <!-- The real input sits on top, invisible, so a tap opens the system colour picker. -->
+      <input
+        type="color"
+        aria-label="Custom colour"
+        value={lastCustom}
+        oninput={(e) => onHue?.(e.currentTarget.value as Hue)}
+        onclick={() => !custom && onHue?.(lastCustom as Hue)}
+      />
+    </label>
   </div>
 {/if}
 
@@ -187,5 +213,33 @@
     width: 28px;
     height: 28px;
     border-radius: 99px;
+  }
+  .sw:has(input) {
+    position: relative;
+  }
+  /* A wheel of the five task colours; once a colour is picked it fills the middle. */
+  .wheel {
+    box-sizing: border-box;
+    background: conic-gradient(#fb923c, #fde047, #a3e635, #22d3ee, #818cf8, #fb923c);
+  }
+  .wheel.set {
+    border: 3px solid transparent;
+    background:
+      linear-gradient(var(--pick), var(--pick)) padding-box,
+      conic-gradient(#fb923c, #fde047, #a3e635, #22d3ee, #818cf8, #fb923c) border-box;
+  }
+  input[type='color'] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .sw:has(input:focus-visible) .wheel {
+    outline: 2px solid var(--text);
+    outline-offset: 3px;
   }
 </style>

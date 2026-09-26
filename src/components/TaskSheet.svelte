@@ -138,7 +138,7 @@
       <Fields field="duration" min={it.min} allowNone onMin={setDuration} />
       {#if !isCheck}
         <div class="group">
-          <span class="label">Kind</span>
+          <span class="label">Type</span>
           <div class="row">
             {#each KINDS as [k, l] (k)}
               <button class="chip" aria-pressed={it.kind === k} onclick={() => P.setKind(id, k)}>{l}</button>

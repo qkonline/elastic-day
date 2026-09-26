@@ -225,6 +225,14 @@ describe('Planner', () => {
     expect(p.day).toMatchObject({ dayStarted: 620, dayStart: 620, wrap: 1220 });
   });
 
+  it('starting after the planned wrap-up counts a full day from then', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 18, 0));
+    const p = await boot();
+    add(p, 'Evening work');
+    p.startDay();
+    expect(p.day).toMatchObject({ dayStarted: 1080, dayStart: 1080, wrap: 1080 + 480 });
+  });
+
   it('shows the welcome once, and never to someone who already has a plan', async () => {
     const p = await boot();
     expect(p.showWelcome).toBe(true);

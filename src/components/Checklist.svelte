@@ -1,7 +1,7 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
   import { keyDate, shortDate } from '../lib/time';
-  import { HUES } from '../lib/types';
+  import { hueColor, inkOn } from '../lib/types';
 
   // Tasks with no duration: ticked off, never timed, kept out of the timeline.
   const checks = $derived(P.day.items.filter((i) => i.kind === 'check' && i.status !== 'skipped'));
@@ -24,7 +24,8 @@
             aria-checked={it.status === 'done'}
             aria-label={it.title}
             disabled={moved}
-            style:--c={HUES[it.hue]}
+            style:--c={hueColor(it.hue)}
+            style:--ink={inkOn(it.hue)}
             onclick={() => P.toggleCheck(it.id)}>{it.status === 'done' ? '✓' : ''}</button
           >
           <button class="title" onclick={() => P.openSheet({ type: 'task', id: it.id })}>{it.title}</button>
@@ -81,7 +82,7 @@
     border-radius: 99px;
     border: 1.5px solid var(--c);
     background: color-mix(in oklab, var(--c) 14%, transparent);
-    color: #16181d;
+    color: var(--ink);
     font: 400 13px/1 var(--font);
     display: flex;
     align-items: center;

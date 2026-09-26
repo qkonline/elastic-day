@@ -5,7 +5,9 @@
 <div class="empty">
   <span class="cap" aria-hidden="true"></span>
   <div class="h">Nothing planned yet.</div>
-  <div class="p">Add what you want to do and how long it takes. The order is the plan — times work themselves out.</div>
+  <div class="p">
+    Add what you want to do and how long it takes. The order is the plan, and the times work themselves out.
+  </div>
   <button class="sample" onclick={() => P.loadSample()}>load a sample day</button>
 </div>
 

@@ -4,8 +4,8 @@
 
 import { newItem, uid } from './actions';
 import { dkey } from './time';
-import type { Day, Hue, Item, Kind, Series, Settings, Status } from './types';
-import { DEFAULT_SETTINGS, HUES } from './types';
+import type { Day, Item, Kind, Series, Settings, Status } from './types';
+import { DEFAULT_SETTINGS, isHue } from './types';
 
 export interface BackupV2 {
   app: 'elastic-day';
@@ -63,7 +63,7 @@ export function normalizeItem(raw: unknown): Item {
     min,
     kind,
     fixedAt: kind === 'fixed' ? num(r.fixedAt, 540) : null,
-    hue: str(r.hue, '') in HUES ? (r.hue as Hue) : 'cyan',
+    hue: isHue(r.hue) ? r.hue : 'cyan',
     status,
     startedAt: timed ? startedAt : null,
     endedAt: timed ? endedAt : null,
@@ -113,7 +113,7 @@ function normalizeSeries(raw: unknown): Series | null {
     title: str(r.title, 'Untitled'),
     min: minutes(r.min, 30),
     kind,
-    hue: str(r.hue, '') in HUES ? (r.hue as Hue) : 'cyan',
+    hue: isHue(r.hue) ? r.hue : 'cyan',
     fixedAt: kind === 'fixed' ? num(r.fixedAt, 540) : null,
     repeat,
     note: str(r.note, ''),

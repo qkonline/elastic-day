@@ -178,10 +178,43 @@ a {
 }
 
 .label {
-  font: 400 12px/1 var(--font);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font: 400 13px/1.2 var(--font);
   color: var(--muted);
+}
+
+/* On/off switch: a button (or a span inside one) with a knob span; .on when on. */
+.switch {
+  width: 52px;
+  height: 32px;
+  border-radius: 99px;
+  border: none;
+  background: var(--line);
+  position: relative;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  transition: background 160ms;
+}
+.switch.on {
+  background: var(--text);
+}
+.switch span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 99px;
+  background: var(--raised);
+  transition: left 160ms;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.switch.on span {
+  left: 23px;
+}
+.switch:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .btn-plain {

@@ -3,7 +3,9 @@
 // on past midnight (1500 = 1:00 am the next morning). Start/end times are never stored: see
 // schedule.ts.
 
-export type Hue = 'orange' | 'yellow' | 'lime' | 'cyan' | 'indigo';
+export type HueName = 'orange' | 'yellow' | 'lime' | 'cyan' | 'indigo';
+/** One of the five task colours, or a custom colour as '#rrggbb'. */
+export type Hue = HueName | `#${string}`;
 /** 'check' = no duration and no timer, just ticked off (shown in the Checklist, not the timeline). */
 export type Kind = 'task' | 'buffer' | 'fixed' | 'check';
 export type Status = 'todo' | 'running' | 'paused' | 'done' | 'postponed' | 'skipped';
@@ -95,13 +97,28 @@ export interface Series {
   until: string | null;
 }
 
-export const HUES: Record<Hue, string> = {
+export const HUES: Record<HueName, string> = {
   orange: '#fb923c',
   yellow: '#fde047',
   lime: '#a3e635',
   cyan: '#22d3ee',
   indigo: '#818cf8',
 };
+
+export const isHex = (s: unknown): s is `#${string}` => typeof s === 'string' && /^#[0-9a-f]{6}$/i.test(s);
+export const isHue = (s: unknown): s is Hue => isHex(s) || (typeof s === 'string' && Object.hasOwn(HUES, s));
+
+/** The CSS colour for a task colour. */
+export function hueColor(h: Hue): string {
+  return isHex(h) ? h : (HUES[h] ?? HUES.cyan);
+}
+
+/** Dark or light ink, whichever reads better on top of a task colour. */
+export function inkOn(h: Hue): string {
+  const c = hueColor(h);
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#16181d' : '#ffffff';
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   themePref: 'match',

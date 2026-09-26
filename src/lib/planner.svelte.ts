@@ -460,9 +460,10 @@ export class Planner {
       this.alerted.delete(first.id);
       this.finishElsewhere();
     }
-    // With a flexible start, the day's length counts from now.
+    // With a flexible start, or starting after the planned wrap-up (when those hours no longer
+    // mean anything), the day's length counts from now.
     const s = this.settings;
-    const flex = s.flexStart ? { dayStart: n, wrap: n + s.dayLength } : {};
+    const flex = s.flexStart || n >= this.day.wrap ? { dayStart: n, wrap: n + s.dayLength } : {};
     this.update((d) => ({ ...A.startDay(d, n), ...flex }), first ? `${first.title} started` : 'Day started');
     if (first) this.offerNotifications();
   }

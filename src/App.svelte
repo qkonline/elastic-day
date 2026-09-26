@@ -6,6 +6,7 @@
   import Checklist from './components/Checklist.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
+  import DayStatus from './components/DayStatus.svelte';
   import EmptyState from './components/EmptyState.svelte';
   import Header from './components/Header.svelte';
   import InstallGuide from './components/InstallGuide.svelte';
@@ -138,6 +139,7 @@
           {#if P.day.items.length === 0}
             <EmptyState />
           {:else}
+            <DayStatus />
             <Checklist />
             {#if timed}<Timeline />{/if}
           {/if}
