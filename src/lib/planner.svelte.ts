@@ -514,7 +514,7 @@ export class Planner {
   reschedNow(id: string): void {
     const it = this.item(id);
     if (!it) return;
-    const res = A.reschedNow(this.day, id, this.n);
+    const res = A.reschedNow(this.day, id);
     this.resched = null;
     this.put(res.day);
     if (res.start) this.startItem(id);

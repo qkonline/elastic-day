@@ -55,22 +55,40 @@ export function patchItem(day: Day, id: string, patch: Partial<Item>): Day {
   return mapItem(day, id, () => patch);
 }
 
-/** Starting an item finishes whatever else is running or paused as done. Buffers never start. */
+/**
+ * Put the started item at the current point in the plan: straight after the last item that has
+ * already happened (done, skipped, moved, or just finished), in front of everything still to do.
+ * Whatever hasn't started is then planned after it, instead of overlapping it or being left
+ * behind in slots that have already gone by.
+ */
+function toCurrentPoint(items: Item[], id: string): Item[] {
+  const self = items.find((x) => x.id === id);
+  if (!self) return items;
+  const rest = items.filter((x) => x.id !== id);
+  let at = 0;
+  rest.forEach((x, k) => {
+    if (x.status !== 'todo') at = k + 1;
+  });
+  rest.splice(at, 0, self);
+  return rest;
+}
+
+/**
+ * Starting an item finishes whatever else is running or paused as done, and moves the item to
+ * the current point in the plan (see toCurrentPoint). Buffers never start.
+ */
 export function startItem(day: Day, id: string, n: number): Day {
   const target = find(day, id);
   if (!target || target.kind === 'buffer') return day;
-  return {
-    ...day,
-    dayStarted: day.dayStarted ?? n,
-    items: day.items.map((i) => {
-      if (i.id === id)
-        return { ...i, status: 'running', startedAt: n, endedAt: null, pausedAt: null, pausedFor: 0, marked: false };
-      if (i.status === 'running') return { ...i, status: 'done', endedAt: n };
-      if (i.status === 'paused')
-        return { ...i, status: 'done', pausedFor: pausedSoFar(i, n), pausedAt: null, endedAt: n };
-      return i;
-    }),
-  };
+  const items = day.items.map((i): Item => {
+    if (i.id === id)
+      return { ...i, status: 'running', startedAt: n, endedAt: null, pausedAt: null, pausedFor: 0, marked: false };
+    if (i.status === 'running') return { ...i, status: 'done', endedAt: n };
+    if (i.status === 'paused')
+      return { ...i, status: 'done', pausedFor: pausedSoFar(i, n), pausedAt: null, endedAt: n };
+    return i;
+  });
+  return { ...day, dayStarted: day.dayStarted ?? n, items: toCurrentPoint(items, id) };
 }
 
 /** "Start my day": stamp the day and start the first pending task (or fixed item). */
@@ -254,23 +272,16 @@ export function restore(day: Day, id: string): Day {
 
 /**
  * Reschedule → Start now / Do it next.
- * With something active, the item goes right after it; otherwise it goes before the first
- * pending item and the caller starts it.
+ * With something running or paused, the item goes right after it ("do it next"). Otherwise the
+ * caller starts it, and starting moves it to the current point in the plan.
  */
-export function reschedNow(day: Day, id: string, n: number): { day: Day; start: boolean } {
-  const it = find(day, id);
-  if (!it) return { day, start: false };
+export function reschedNow(day: Day, id: string): { day: Day; start: boolean } {
+  if (!find(day, id)) return { day, start: false };
   const act = activeItem(day);
-  const rows = schedule(day, n).rows;
+  if (!act) return { day, start: true };
   const items = day.items.filter((i) => i.id !== id);
-  let at: number;
-  if (act) at = items.findIndex((i) => i.id === act.id) + 1;
-  else {
-    const tg = rows.find((r) => r.it.id !== id && r.it.status === 'todo' && r.end > n);
-    at = tg ? items.findIndex((i) => i.id === tg.it.id) : items.length;
-  }
-  items.splice(at, 0, it);
-  return { day: { ...day, items }, start: !act };
+  items.splice(items.findIndex((i) => i.id === act.id) + 1, 0, find(day, id)!);
+  return { day: { ...day, items }, start: false };
 }
 
 /** Reschedule → Later today: before the first pending, non-fixed item that starts at or after `tm`. */

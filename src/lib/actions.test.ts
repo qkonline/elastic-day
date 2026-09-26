@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as A from './actions';
+import { schedule } from './schedule';
 import type { Day, Item } from './types';
 
 const t = (title: string, min: number, o: Partial<Item> = {}) => A.newItem({ title, min, id: title, ...o });
@@ -37,7 +38,8 @@ describe('timer actions', () => {
   it('Start my day starts the first pending task, skipping buffers', () => {
     const d = A.startDay(day([t('buf', 15, { kind: 'buffer' }), t('a', 30)]), 552);
     expect(d.dayStarted).toBe(552);
-    expect(st(d)).toEqual(['buf:todo', 'a:running']);
+    // The started task becomes the current point; the leading buffer now follows it.
+    expect(st(d)).toEqual(['a:running', 'buf:todo']);
   });
 
   it('pause and resume accumulate paused time', () => {
@@ -83,21 +85,49 @@ describe('postpone', () => {
   });
 });
 
-describe('reschedule', () => {
-  it('Start now goes before the first pending item when nothing is active', () => {
-    // 'a' was missed; 'b' and 'c' are still ahead.
-    const d = day(
-      [t('a', 30), t('done', 30, { status: 'done', startedAt: 600, endedAt: 630 }), t('b', 30), t('c', 30)],
+describe('starting late', () => {
+  const plan = (d: Day, n: number) => schedule(d, n).rows.map((r) => `${r.it.id} ${r.start}-${r.end}`);
+
+  it('starting a missed task at noon moves everything still to do after it', () => {
+    // Day started at 9. "work" was planned 10–11 and "call" 11–11:30; both missed by noon.
+    const d0 = day(
+      [t('mail', 60, { status: 'done', startedAt: 540, endedAt: 600 }), t('work', 60), t('call', 30), t('report', 45)],
       { dayStarted: 540 },
     );
-    const res = A.reschedNow(d, 'a', 640);
+    const res = A.reschedNow(d0, 'work');
     expect(res.start).toBe(true);
-    expect(res.day.items.map((i) => i.id)).toEqual(['done', 'a', 'b', 'c']);
+    const d1 = A.startItem(res.day, 'work', 720);
+    expect(plan(d1, 720)).toEqual(['mail 540-600', 'work 720-780', 'call 780-810', 'report 810-855']);
   });
 
-  it('Do it next goes right after the active item', () => {
+  it('works the same when "Start my day" was never pressed', () => {
+    const d0 = day([t('work', 60), t('call', 30), t('report', 45)], { dayStart: 600 });
+    const d1 = A.startItem(A.reschedNow(d0, 'work').day, 'work', 720);
+    expect(d1.dayStarted).toBe(720);
+    expect(plan(d1, 720)).toEqual(['work 720-780', 'call 780-810', 'report 810-855']);
+  });
+
+  it('starting a task further down brings it up in front of the ones not started yet', () => {
+    const d0 = day(
+      [t('mail', 30, { status: 'done', startedAt: 540, endedAt: 570 }), t('a', 30), t('b', 30), t('c', 30)],
+      {
+        dayStarted: 540,
+      },
+    );
+    const d1 = A.startItem(d0, 'c', 600);
+    expect(d1.items.map((i) => i.id)).toEqual(['mail', 'c', 'a', 'b']);
+    expect(plan(d1, 600)).toEqual(['mail 540-570', 'c 600-630', 'a 630-660', 'b 660-690']);
+  });
+
+  it('keeps fixed-time items at their time', () => {
+    const d0 = day([t('a', 30), t('meet', 30, { kind: 'fixed', fixedAt: 900 }), t('b', 60)], { dayStarted: 540 });
+    const d1 = A.startItem(d0, 'b', 720);
+    expect(plan(d1, 720)).toEqual(['b 720-780', 'a 780-810', 'meet 900-930']);
+  });
+
+  it('Do it next goes right after the running task without starting', () => {
     const d = day([t('a', 30), t('run', 30, { status: 'running', startedAt: 600 }), t('b', 30)], { dayStarted: 540 });
-    const res = A.reschedNow(d, 'a', 610);
+    const res = A.reschedNow(d, 'a');
     expect(res.start).toBe(false);
     expect(res.day.items.map((i) => i.id)).toEqual(['run', 'a', 'b']);
   });
