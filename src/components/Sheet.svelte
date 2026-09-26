@@ -91,16 +91,17 @@
     overflow: hidden;
     outline: none;
   }
+  /* Sit on top of the on-screen keyboard and never be taller than what's still visible. */
   .bottom {
     left: 0;
     right: 0;
-    bottom: 0;
-    max-height: 88dvh;
+    bottom: var(--kb, 0px);
+    max-height: min(88dvh, calc(var(--vvh, 100dvh) - 12px));
     border-radius: 22px 22px 0 0;
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
   }
   .bottom.tall {
-    height: 88dvh;
+    height: min(88dvh, calc(var(--vvh, 100dvh) - 12px));
   }
   .dialog {
     left: 50%;

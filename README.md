@@ -13,13 +13,13 @@ Live at **[kaiserkhan.com/planner](https://kaiserkhan.com/planner/)**. It works 
 
 ## How it works
 
-- **Tasks, buffers and fixed times.** A task has a duration. A buffer is slack you can't start. A fixed item (a meeting, say) sits at its time and everything else flows around it.
+- **Tasks, buffers and fixed times.** A task has a duration: pick a preset or set your own hours and minutes. A buffer is slack you can't start. A fixed item (a meeting, say) sits at its time and everything else flows around it.
 - **One timer.** Start a task and it counts down; past zero it counts up in red, with a soft two-note chime and a buzz on phones. Starting another task finishes the current one.
 - **Idle time doesn't move the plan.** If nothing is running, planned times stay where they are, so the things you didn't get to show up as _missed_. Reschedule them (start now, later today, another day) or mark them done.
 - **Postpone.** Before a task starts, "Later today" moves it to the end of the list. Mid-task, the time you've put in stays logged and the rest becomes a new task, later today or tomorrow.
 - **Reorder by dragging.** Hold a capsule on a phone, or just drag it with a mouse. The task sheet has Earlier/Later buttons too.
 - **Repeating tasks.** Every day, weekdays, or one weekday. Editing a repeating task also updates later days you haven't started yet.
-- **Other days** are for planning: the week strip lets you look ahead or back and move things between days.
+- **Other days** are for planning: the week strip lets you look ahead or back and move things between days. On a phone, swipe sideways to go to the next or previous day, and pull down from the top to refresh.
 - **Notifications.** The first time you start a timer, Elastic Day offers to notify you when time's up. You can turn that on, leave it for now (it asks again the next day), or tell it not to ask again. There's a switch in Settings either way.
 - **Install it.** Settings has an _Install_ button in browsers that support it (Chrome, Edge, Samsung Internet), and short instructions for Safari on iPhone, iPad and Mac. Installed, it opens from its own icon in its own window. On iPhone and iPad this is also what makes notifications possible.
 

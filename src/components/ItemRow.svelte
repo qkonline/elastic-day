@@ -92,6 +92,7 @@
     <span
       role="button"
       tabindex="0"
+      data-no-swipe
       aria-label="{it.title}. Tap to edit, hold to reorder"
       class="cap"
       class:buffer={it.kind === 'buffer'}

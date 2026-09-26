@@ -164,6 +164,16 @@ describe('Planner', () => {
     expect(q.elsewhere).toBeNull();
   });
 
+  it('keeps the week strip on the week of the day shown', async () => {
+    const p = await boot();
+    await p.switchDay('2026-09-28'); // next Monday, e.g. swiping on from Sunday
+    expect(p.weekOff).toBe(1);
+    expect(p.weekKeys[0]).toBe('2026-09-28');
+    await p.switchDay('2026-09-27');
+    expect(p.weekOff).toBe(0);
+    expect(p.weekKeys).toContain('2026-09-27');
+  });
+
   it('erases everything', async () => {
     const p = await boot();
     add(p, 'A');

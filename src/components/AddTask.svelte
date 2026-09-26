@@ -5,14 +5,13 @@
   import Fields, { KINDS } from './Fields.svelte';
 
   let title = $state('');
-  let minText = $state('30');
+  let min = $state(30);
   let kind = $state<Kind>('task');
   let hue = $state<Hue | null>(null);
   // Fixed items default to the next quarter hour, half an hour from now.
   const defaultFixed = (Math.ceil((P.nowToday() + 30) / 15) * 15) % 1440;
   let fixedStr = $state(hhmm(defaultFixed));
 
-  const min = $derived(parseInt(minText) || 0);
   const ok = $derived(!!title.trim() && min > 0);
   const sel = $derived(hue ?? (kind === 'fixed' ? 'indigo' : 'cyan'));
   const placeholder = $derived(P.isToday ? 'What else today?' : `What else on ${shortDate(keyDate(P.viewKey))}?`);
@@ -31,14 +30,7 @@
 </div>
 <div class="body">
   <input class="name" data-autofocus bind:value={title} onkeydown={enter} {placeholder} aria-label="Task name" />
-  <Fields
-    field="duration"
-    {min}
-    {minText}
-    onMin={(m) => (minText = String(m))}
-    onMinText={(s) => (minText = s)}
-    onEnter={add}
-  />
+  <Fields field="duration" {min} onMin={(m) => (min = m)} />
   <div class="group">
     <span class="label">Kind</span>
     <div class="row">

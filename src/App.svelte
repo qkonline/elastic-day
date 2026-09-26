@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
+  import { fly } from 'svelte/transition';
   import AddTask from './components/AddTask.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
@@ -8,15 +9,26 @@
   import Header from './components/Header.svelte';
   import InstallGuide from './components/InstallGuide.svelte';
   import NotifyPrompt from './components/NotifyPrompt.svelte';
+  import PullIndicator from './components/PullIndicator.svelte';
   import RunningElsewhere from './components/RunningElsewhere.svelte';
   import Settings from './components/Settings.svelte';
   import Sheet from './components/Sheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
   import Timeline from './components/Timeline.svelte';
   import WeekStrip from './components/WeekStrip.svelte';
+  import { dayGestures, gestures } from './lib/gestures.svelte';
   import { planner as P } from './lib/planner.svelte';
+  import { reducedMotion } from './lib/ui.svelte';
 
   const prefersDark = new MediaQuery('(prefers-color-scheme: dark)', false);
+  // A day reached by swiping slides in from the side the finger came from.
+  const slideIn = () =>
+    gestures.enter && !reducedMotion.current
+      ? { x: gestures.enter === 'right' ? 48 : -48, duration: 200 }
+      : { duration: 0 };
+  const shift = $derived(
+    gestures.dx || gestures.pull ? `translate(${gestures.dx}px, ${gestures.pull * 0.6}px)` : undefined,
+  );
   const theme = $derived(
     P.settings.themePref === 'match' ? (prefersDark.current ? 'dark' : 'light') : P.settings.themePref,
   );
@@ -70,20 +82,25 @@
   </div>
 {:else if P.ready}
   <!-- inert: while a sheet is open, keyboard and screen readers stay inside it. -->
-  <div class="page" inert={!!P.sheet}>
+  <div class="page" inert={!!P.sheet} {@attach dayGestures(P)}>
     <Header />
     <WeekStrip />
     <RunningElsewhere />
     <NotifyPrompt />
-    <main>
-      {#if P.day.items.length === 0}
-        <EmptyState />
-      {:else}
-        <Timeline />
-      {/if}
-      <DayFooter />
+    <main class:settling={!gestures.dragging} style:transform={shift} style:opacity={1 - Math.abs(gestures.dx) / 400}>
+      {#key P.viewKey}
+        <div in:fly={slideIn()} onintroend={() => (gestures.enter = null)}>
+          {#if P.day.items.length === 0}
+            <EmptyState />
+          {:else}
+            <Timeline />
+          {/if}
+          <DayFooter />
+        </div>
+      {/key}
     </main>
   </div>
+  <PullIndicator />
 
   <button class="fab" aria-label="Add task" inert={!!P.sheet} onclick={() => P.openSheet({ type: 'add' })}>
     <span class="plus">+</span><span>Add task</span>
@@ -118,6 +135,11 @@
 <div class="sr-only" aria-live="polite">{P.announce}</div>
 
 <style>
+  main.settling {
+    transition:
+      transform 200ms ease,
+      opacity 200ms ease;
+  }
   .page {
     display: block;
     max-width: none;

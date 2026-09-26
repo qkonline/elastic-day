@@ -10,7 +10,7 @@ import { cancelPush, preparePush, schedulePush, unsubscribePush } from './push';
 import { materialize, seriesFromItem, syncSeriesInto } from './repeat';
 import { sampleItems } from './sample';
 import { isActive, schedule, worked } from './schedule';
-import { addDays, dkey, fT, hhmm, hm, keyDate, minutesInto, shortDate, todayKey } from './time';
+import { addDays, dayDiff, fT, hhmm, hm, keyDate, minutesInto, mondayOf, shortDate, todayKey } from './time';
 import type { Day, Hue, Item, Kind, Series, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
@@ -90,14 +90,8 @@ export class Planner {
     return null;
   });
   weekKeys = $derived.by(() => {
-    const t = keyDate(this.today);
-    const mon = new Date(t);
-    mon.setDate(t.getDate() - ((t.getDay() + 6) % 7) + this.weekOff * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i);
-      return dkey(d);
-    });
+    const mon = addDays(mondayOf(this.today), this.weekOff * 7);
+    return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
   });
 
   private stored = new Set<string>();
@@ -360,6 +354,12 @@ export class Planner {
     this.resched = null;
     this.drag = null;
     this.hover = null;
+    // Keep the week strip on the week of the day being shown (swiping can cross into the next).
+    const week = Math.floor(dayDiff(mondayOf(this.today), key) / 7);
+    if (week !== this.weekOff) {
+      this.weekOff = week;
+      void this.loadWeek();
+    }
   }
 
   backToToday(): void {

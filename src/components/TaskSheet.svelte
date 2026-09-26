@@ -126,16 +126,7 @@
     {/if}
 
     <div class="card">
-      <Fields
-        field="duration"
-        min={it.min}
-        minText={String(it.min)}
-        onMin={(m) => P.edit(id, { min: m })}
-        onMinCommit={(s) => {
-          const m = parseInt(s);
-          if (m > 0 && m !== it.min) P.edit(id, { min: m });
-        }}
-      />
+      <Fields field="duration" min={it.min} onMin={(m) => m !== it.min && P.edit(id, { min: m })} />
       <div class="group">
         <span class="label">Kind</span>
         <div class="row">

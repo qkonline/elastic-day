@@ -121,6 +121,15 @@ button {
   appearance: none;
 }
 
+/* iOS zooms the page into any form field with text under 16px; on touch screens keep them at 16. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 input[type='time'],
 input[type='date'] {
   -webkit-appearance: none;

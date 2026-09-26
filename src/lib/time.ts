@@ -82,6 +82,11 @@ export function addDays(k: string, n: number): string {
   return dkey(d);
 }
 
+/** The Monday of the week that `k` falls in (weeks run Monday to Sunday). */
+export function mondayOf(k: string): string {
+  return addDays(k, -((keyDate(k).getDay() + 6) % 7));
+}
+
 /** Whole days from `a` to `b`. */
 export function dayDiff(a: string, b: string): number {
   return Math.round((keyDate(b).getTime() - keyDate(a).getTime()) / 86400000);

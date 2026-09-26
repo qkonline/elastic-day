@@ -5,41 +5,47 @@
     ['buffer', 'Buffer'],
     ['fixed', 'Fixed time'],
   ];
+
+  const range = (from: number, to: number, step = 1) =>
+    Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step);
+  const withValue = (list: number[], v: number) => [...new Set([...list, v])].sort((a, b) => a - b);
 </script>
 
 <script lang="ts">
-  // Duration picks + custom minutes, and the colour swatches. Shared by the New task modal
-  // and the task sheet.
+  // Duration presets with a custom hours/minutes picker, and the colour swatches. Shared by the
+  // New task modal and the task sheet.
+  import { untrack } from 'svelte';
   import { dL } from '../lib/time';
   import { HUES, type Hue } from '../lib/types';
 
   let {
     field,
     min = 0,
-    minText = '',
     onMin,
-    onMinText,
-    onMinCommit,
-    onEnter,
     hue,
     onHue,
     ringBg = 'var(--raised)',
   }: {
     field: 'duration' | 'colour';
     min?: number;
-    minText?: string;
     onMin?: (m: number) => void;
-    /** Called on every keystroke (a form that saves later). */
-    onMinText?: (s: string) => void;
-    /** Called once typing is finished: Enter or leaving the field (editing a live task). */
-    onMinCommit?: (s: string) => void;
-    onEnter?: () => void;
     hue?: Hue;
     onHue?: (h: Hue) => void;
     ringBg?: string;
   } = $props();
 
-  const digits = (v: string) => v.replace(/[^0-9]/g, '');
+  const isPreset = $derived(PICKS.includes(min));
+  // A duration that isn't a preset (e.g. the rest of a postponed task) opens the picker.
+  let customOpen = $state(untrack(() => !PICKS.includes(min)));
+  const hours = $derived(Math.floor(min / 60));
+  const mins = $derived(min % 60);
+  // Five-minute steps, plus whatever the current value is so it can always be shown.
+  const hourOpts = $derived(withValue(range(0, 12), hours));
+  const minOpts = $derived(withValue(range(0, 55, 5), mins));
+
+  function setCustom(h: number, m: number) {
+    onMin?.(h * 60 + m || 5);
+  }
 </script>
 
 {#if field === 'duration'}
@@ -47,24 +53,38 @@
     <span class="label">How long</span>
     <div class="picks">
       {#each PICKS as m (m)}
-        <button class="chip" aria-pressed={min === m} onclick={() => onMin?.(m)}>{dL(m)}</button>
+        <button
+          class="chip"
+          aria-pressed={min === m && !customOpen}
+          onclick={() => {
+            customOpen = false;
+            onMin?.(m);
+          }}>{dL(m)}</button
+        >
       {/each}
-      <span class="custom">
-        <input
-          value={minText}
-          inputmode="numeric"
-          aria-label="Minutes"
-          oninput={(e) => onMinText?.(digits(e.currentTarget.value))}
-          onchange={(e) => onMinCommit?.(digits(e.currentTarget.value))}
-          onkeydown={(e) => {
-            if (e.key !== 'Enter' || e.isComposing) return;
-            onMinCommit?.(digits(e.currentTarget.value));
-            onEnter?.();
-          }}
-        />
-        <span>min</span>
-      </span>
+      <button
+        class="chip"
+        aria-pressed={customOpen || !isPreset}
+        aria-expanded={customOpen}
+        onclick={() => (customOpen = !customOpen)}>{isPreset ? 'Custom' : dL(min)}</button
+      >
     </div>
+    {#if customOpen}
+      <div class="custom">
+        <label class="sel">
+          <span class="sr-only">Hours</span>
+          <select value={hours} onchange={(e) => setCustom(+e.currentTarget.value, mins)}>
+            {#each hourOpts as h (h)}<option value={h}>{h} h</option>{/each}
+          </select>
+        </label>
+        <label class="sel">
+          <span class="sr-only">Minutes</span>
+          <select value={mins} onchange={(e) => setCustom(hours, +e.currentTarget.value)}>
+            {#each minOpts as m (m)}<option value={m}>{m} min</option>{/each}
+          </select>
+        </label>
+      </div>
+    {/if}
   </div>
 {:else}
   <div class="colour">
@@ -94,26 +114,38 @@
   }
   .custom {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    height: 40px;
-    padding: 0 10px;
+    gap: 8px;
+  }
+  .sel {
+    position: relative;
+    display: inline-flex;
+  }
+  /* A small chevron drawn with borders, so it follows the theme colours. */
+  .sel::after {
+    content: '';
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -5px;
+    border-right: 1.5px solid var(--muted);
+    border-bottom: 1.5px solid var(--muted);
+    transform: rotate(45deg);
+    pointer-events: none;
+  }
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 44px;
+    min-width: 96px;
+    padding: 0 34px 0 14px;
+    border: none;
     border-radius: 10px;
     background: var(--sunk);
-  }
-  .custom input {
-    width: 38px;
-    border: none;
-    outline: none;
-    background: transparent;
-    text-align: right;
-    font: 400 14px/1 var(--font);
     color: var(--text);
-    padding: 0;
-  }
-  .custom span {
-    font: 400 13px/1 var(--font);
-    color: var(--muted);
+    font: 400 15px/1 var(--font);
+    cursor: pointer;
   }
   .colour {
     display: flex;
