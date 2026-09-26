@@ -103,6 +103,14 @@ export function minutesInto(key: string, nowMs = Date.now()): number {
   return (nowMs - midnight.getTime()) / 60000 + shift;
 }
 
+/**
+ * A clock time (0–1439) typed for a day that reaches past midnight: small-hours times belong
+ * to the night after it. `late` is how far the day reaches: its wrap-up, or now if later.
+ */
+export function clockToDay(m: number, late: number): number {
+  return late > 1440 && m <= late - 1440 + 60 ? m + 1440 : m;
+}
+
 /** "Fri 25 Sep" */
 export function shortDate(d: Date): string {
   return WD[d.getDay()] + ' ' + d.getDate() + ' ' + MON[d.getMonth()];

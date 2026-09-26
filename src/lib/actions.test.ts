@@ -153,3 +153,34 @@ describe('reorder', () => {
     expect(d.items[0]).toMatchObject({ kind: 'fixed', fixedAt: 540, hue: 'indigo' });
   });
 });
+
+describe('checks and the end of the day', () => {
+  const c = (title: string, o: Partial<Item> = {}) => t(title, 0, { kind: 'check', ...o });
+
+  it('ticks and unticks a check', () => {
+    let d = A.toggleCheck(day([c('mail')]), 'mail', 600);
+    expect(d.items[0]).toMatchObject({ status: 'done', endedAt: 600 });
+    d = A.toggleCheck(d, 'mail', 610);
+    expect(d.items[0]).toMatchObject({ status: 'todo', endedAt: null });
+  });
+
+  it('never times a check', () => {
+    const d = day([c('mail')]);
+    expect(A.startItem(d, 'mail', 540)).toBe(d);
+    expect(st(A.startDay(day([c('mail'), t('a', 30)]), 545)).sort()).toEqual(['a:running', 'mail:todo']);
+  });
+
+  it('leaves checks where they are when a task starts', () => {
+    const d = A.startItem(day([t('a', 30), c('mail'), t('b', 30)]), 'b', 545);
+    expect(d.items.map((i) => i.id)).toEqual(['b', 'a', 'mail']);
+  });
+
+  it('ending the day finishes the running task, and starting one reopens it', () => {
+    let d = A.startItem(day([t('a', 30), t('b', 30)]), 'a', 545);
+    d = A.endDay(d, 1500);
+    expect(d.dayEnded).toBe(1500);
+    expect(d.items[0]).toMatchObject({ status: 'done', endedAt: 1500 });
+    expect(A.reopenDay(d).dayEnded).toBeNull();
+    expect(A.startItem(d, 'b', 1510).dayEnded).toBeNull();
+  });
+});

@@ -4,6 +4,13 @@
 
   let start = $state(hhmm(P.day.dayStart));
   let wrap = $state(hhmm(P.day.wrap));
+  // A wrap-up at or before the start time means the day runs past midnight.
+  const nextDay = $derived(!!start && !!wrap && hm(wrap) <= hm(start));
+  function save() {
+    if (!start || !wrap) return;
+    const s = hm(start);
+    P.saveHours(s, hm(wrap) + (hm(wrap) <= s ? 1440 : 0));
+  }
   const note = $derived(
     P.isToday && P.day.dayStarted != null
       ? `Today started at ${fNZ(P.day.dayStarted, P.settings.clock24)}. The start time is used when you plan other days.`
@@ -17,11 +24,16 @@
 </div>
 <div class="fields">
   <label>Day starts <input type="time" data-autofocus bind:value={start} /></label>
-  <label>Wrap up by <input type="time" bind:value={wrap} /></label>
+  <label
+    >Wrap up by
+    <span class="w"
+      >{#if nextDay}<span class="nd">next day</span>{/if}<input type="time" bind:value={wrap} /></span
+    ></label
+  >
 </div>
 <div class="foot">
   <button class="cancel" onclick={() => P.closeSheet()}>Cancel</button>
-  <button class="save" onclick={() => start && wrap && P.saveHours(hm(start), hm(wrap))}>Save</button>
+  <button class="save" onclick={save}>Save</button>
 </div>
 
 <style>
@@ -60,6 +72,15 @@
     background: var(--sunk);
     color: var(--text);
     font: 400 15px/1 var(--font);
+  }
+  .w {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nd {
+    font: 400 12px/1 var(--font);
+    color: var(--muted);
   }
   .foot {
     display: flex;

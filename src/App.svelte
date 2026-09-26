@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing';
   import { MediaQuery } from 'svelte/reactivity';
   import AddTask from './components/AddTask.svelte';
+  import Checklist from './components/Checklist.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
   import EmptyState from './components/EmptyState.svelte';
@@ -17,6 +18,8 @@
   import TaskSheet from './components/TaskSheet.svelte';
   import Timeline from './components/Timeline.svelte';
   import WeekStrip from './components/WeekStrip.svelte';
+  import Welcome from './components/Welcome.svelte';
+  import WrapUp from './components/WrapUp.svelte';
   import { dayGestures, gestures } from './lib/gestures.svelte';
   import { planner as P, type Sheet as SheetState } from './lib/planner.svelte';
   import { reducedMotion } from './lib/ui.svelte';
@@ -84,9 +87,12 @@
     }
   });
 
+  // Anything covering the page keeps keyboard and screen readers out of it.
+  const covered = $derived(!!P.sheet || P.showWelcome);
   $effect(() => {
-    document.body.classList.toggle('locked', !!P.sheet);
+    document.body.classList.toggle('locked', covered);
   });
+  const timed = $derived(P.day.items.some((i) => i.kind !== 'check'));
 
   const LABELS = {
     task: 'Edit task',
@@ -94,6 +100,7 @@
     add: 'New task',
     settings: 'Settings',
     install: 'Install',
+    wrapup: 'End your day',
   } as const;
 </script>
 
@@ -109,8 +116,8 @@
     <p class="detail">{P.failed}</p>
   </div>
 {:else if P.ready}
-  <!-- inert: while a sheet is open, keyboard and screen readers stay inside it. -->
-  <div class="page" inert={!!P.sheet} {@attach dayGestures(P)}>
+  <!-- inert: while a sheet or the welcome is open, keyboard and screen readers stay inside it. -->
+  <div class="page" inert={covered} {@attach dayGestures(P)}>
     <Header />
     <WeekStrip />
     <StartDay />
@@ -131,7 +138,8 @@
           {#if P.day.items.length === 0}
             <EmptyState />
           {:else}
-            <Timeline />
+            <Checklist />
+            {#if timed}<Timeline />{/if}
           {/if}
           <DayFooter />
         </div>
@@ -140,7 +148,7 @@
   </div>
   <PullIndicator />
 
-  <button class="fab" aria-label="Add task" inert={!!P.sheet} onclick={() => P.openSheet({ type: 'add' })}>
+  <button class="fab" aria-label="Add task" inert={covered} onclick={() => P.openSheet({ type: 'add' })}>
     <span class="plus">+</span><span>Add task</span>
   </button>
 
@@ -149,7 +157,7 @@
       <Sheet
         variant={shownSheet.type === 'add'
           ? 'form'
-          : shownSheet.type === 'hours' || shownSheet.type === 'install'
+          : shownSheet.type === 'hours' || shownSheet.type === 'install' || shownSheet.type === 'wrapup'
             ? 'small'
             : 'full'}
         label={LABELS[shownSheet.type]}
@@ -162,11 +170,17 @@
           <DayHours />
         {:else if shownSheet.type === 'install'}
           <InstallGuide />
+        {:else if shownSheet.type === 'wrapup'}
+          <WrapUp />
         {:else}
           <Settings />
         {/if}
       </Sheet>
     {/key}
+  {/if}
+
+  {#if P.showWelcome}
+    <Welcome />
   {/if}
 {/if}
 

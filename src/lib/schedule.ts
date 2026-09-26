@@ -24,6 +24,7 @@ export const isPartial = (it: Item) => it.status === 'postponed' && it.startedAt
  * zero keeps the fall-back case from going negative.
  */
 export function worked(it: Item, n: number): number {
+  if (it.kind === 'check') return 0; // ticked off, never timed
   const s = it.status;
   let w = 0;
   if (s === 'running') w = n - it.startedAt! - it.pausedFor;
@@ -51,7 +52,8 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
       end: number,
       gap = 0;
     const s = it.status;
-    if (s === 'skipped' || (s === 'postponed' && !isPartial(it))) {
+    // Checks (no duration) and skipped or moved items take no room in the plan.
+    if (it.kind === 'check' || s === 'skipped' || (s === 'postponed' && !isPartial(it))) {
       start = end = cur;
     } else if (s === 'done' || isPartial(it)) {
       start = it.startedAt!;
@@ -80,8 +82,10 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
     return { it, idx, start, end, gap: gap >= 1 ? gap : 0 };
   });
 
+  // Warnings are about what's still to fit, so an ended day has none.
+  const ended = day.dayEnded != null;
   rows.forEach((r, i) => {
-    const open = !['done', 'skipped', 'postponed'].includes(r.it.status);
+    const open = !ended && r.it.kind !== 'check' && !['done', 'skipped', 'postponed'].includes(r.it.status);
     if (open && r.it.kind !== 'fixed') {
       const f = rows.slice(i + 1).find((x) => x.it.kind === 'fixed' && x.it.status === 'todo');
       if (f && r.end > f.start + 0.5 && r.start < f.end) r.runsInto = true;
@@ -94,5 +98,5 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
   return { rows, finish };
 }
 
-/** A todo item whose planned end has passed (today only). */
-export const isMissed = (r: Row, n: number) => r.it.status === 'todo' && r.end <= n + 1e-6;
+/** A todo item whose planned end has passed (today only). Checks are never missed. */
+export const isMissed = (r: Row, n: number) => r.it.kind !== 'check' && r.it.status === 'todo' && r.end <= n + 1e-6;

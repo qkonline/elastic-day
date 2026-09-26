@@ -20,7 +20,7 @@ export type Parsed =
   | { kind: 'full'; settings: Settings; series: Series[]; days: Day[] }
   | { kind: 'day'; items: Item[]; dayStart: number; wrap: number };
 
-const KINDS: Kind[] = ['task', 'buffer', 'fixed'];
+const KINDS: Kind[] = ['task', 'buffer', 'fixed', 'check'];
 const STATUSES: Status[] = ['todo', 'running', 'paused', 'done', 'postponed', 'skipped'];
 const KEY = /^\d{4}-\d{2}-\d{2}$/;
 const num = (v: unknown, d: number | null) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -49,7 +49,8 @@ export function normalizeItem(raw: unknown): Item {
   const startedAt = num(r.startedAt, null);
   let endedAt = num(r.endedAt, null);
   let pausedAt = num(r.pausedAt, null);
-  const min = minutes(r.min, 30);
+  const min = kind === 'check' ? 0 : minutes(r.min, 30); // checks have no duration
+  if (kind === 'check' && (status === 'running' || status === 'paused')) status = 'todo'; // never timed
   // Reconcile timer fields that don't fit the status (hand-edited or damaged files).
   if ((status === 'running' || status === 'paused') && startedAt == null) status = 'todo';
   if (status === 'paused' && pausedAt == null) pausedAt = startedAt;
@@ -96,6 +97,7 @@ function normalizeDay(raw: unknown): Day | null {
     dayStart: num(r.dayStart, 540)!,
     wrap: num(r.wrap, 1020)!,
     dayStarted: num(r.dayStarted, null),
+    dayEnded: num(r.dayEnded, null),
     items,
   };
 }
@@ -135,6 +137,10 @@ function normalizeSettings(raw: unknown): Settings {
     notifyAskAfter: typeof r.notifyAskAfter === 'string' && KEY.test(r.notifyAskAfter) ? r.notifyAskAfter : null,
     defStart: num(r.defStart, d.defStart)!,
     defWrap: num(r.defWrap, d.defWrap)!,
+    dayLength: Math.max(60, num(r.dayLength, num(r.defWrap, d.defWrap)! - num(r.defStart, d.defStart)!)!),
+    flexStart: typeof r.flexStart === 'boolean' ? r.flexStart : d.flexStart,
+    // A backup comes from someone who has used the app, so don't show them the welcome again.
+    onboarded: true,
   };
 }
 

@@ -13,11 +13,14 @@ Live at **[kaiserkhan.com/planner](https://kaiserkhan.com/planner/)**. It works 
 
 ## How it works
 
+- **Your day, your hours.** On a first visit, two questions shape the plan: when your day usually starts (or that it varies) and how long a productive day is for you. With a start that varies, the day's length counts from when you press _Start my day_. Change either in Settings → _Your day_.
 - **Tasks, buffers and fixed times.** A task has a duration: pick a preset or set your own hours and minutes. A buffer is slack you can't start. A fixed item (a meeting, say) sits at its time and everything else flows around it.
-- **One timer.** Start a task and it counts down; past zero it counts up in red, with a soft two-note chime and a buzz on phones. Starting another task finishes the current one.
+- **Start my day, then one timer.** Tasks can be started once you've pressed _Start my day_. A task counts down; past zero it counts up in red, with a soft two-note chime and a buzz on phones. Starting another task finishes the current one, and whichever task you start moves up to where you are in the list, so everything still to do is planned after it.
+- **Checks for things with no duration.** Pick _No time_ and a task becomes a check: it goes on the day's checklist above the timeline, and you tick it off instead of timing it.
+- **Late nights stay one day.** Once you've started a day, it stays _Today_ past midnight until you press _End my day_, so working until 2 am still counts as the day you started. The wrap-up shows what got done and can move whatever's left to tomorrow. A day you forget to end closes at 4 am, or three hours after a later planned wrap-up.
 - **Idle time doesn't move the plan.** If nothing is running, planned times stay where they are, so the things you didn't get to show up as _missed_. Reschedule them (start now, later today, another day) or mark them done.
 - **Postpone.** Before a task starts, "Later today" moves it to the end of the list. Mid-task, the time you've put in stays logged and the rest becomes a new task, later today or tomorrow.
-- **Reorder by dragging.** Hold a capsule on a phone, or just drag it with a mouse. The task sheet has Earlier/Later buttons too.
+- **Reorder by dragging.** Drag a task by its capsule (or press and hold its name on a phone); the other tasks slide aside to show where it will land. The task sheet has Earlier/Later buttons too.
 - **Repeating tasks.** Every day, weekdays, or one weekday. Editing a repeating task also updates later days you haven't started yet.
 - **Other days** are for planning: the week strip lets you look ahead or back and move things between days. On a phone, swipe sideways to go to the next or previous day, and pull down from the top to refresh.
 - **Notifications.** The first time you start a timer, Elastic Day offers to notify you when time's up. You can turn that on, leave it for now (it asks again the next day), or tell it not to ask again. There's a switch in Settings either way.
@@ -51,11 +54,14 @@ Built with Svelte 5, TypeScript and Vite. The only thing shipped besides the app
 src/
   lib/
     schedule.ts        works out every item's start and end from the list (the core of the app)
+    today.ts           which day counts as Today, including after midnight
     actions.ts         every change to a day as a pure function: start, pause, postpone, reorder…
     planner.svelte.ts  app state: the loaded days, the clock, what's open, saving, notifications
     db.ts              IndexedDB: one record per day, repeating series, settings
     repeat.ts          repeat rules and building days from repeating tasks
     rows.ts            what each timeline row looks like at a given moment
+    drag.ts            reordering tasks by dragging
+    gestures.svelte.ts swiping between days and pulling to refresh
     backup.ts          export, and checking files on import
     push.ts            booking time's-up pushes with the push worker
     install.svelte.ts  the browser's install prompt
@@ -69,7 +75,7 @@ scripts/deploy.sh      build and upload the site
 A few rules the code sticks to:
 
 - Start and end times are never stored. `schedule()` recomputes them on every tick from the order of the list, durations, fixed times and the timer timestamps.
-- Times are minutes since midnight of the item's day (570 is 9:30 am), which keeps the scheduling maths simple and lets a running timer survive a reload.
+- Times are minutes since midnight of the item's day (570 is 9:30 am), which keeps the scheduling maths simple and lets a running timer survive a reload. A late night keeps counting past 1440, so 1:30 am after a Friday is Friday's minute 1530.
 - A day that hasn't been touched isn't stored; it's built from your repeating tasks when you look at it.
 
 ## Notifications while the app is closed

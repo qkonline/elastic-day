@@ -184,6 +184,61 @@ describe('Planner', () => {
     expect(p.weekKeys).toContain('2026-09-27');
   });
 
+  it('keeps a late night on the day it started, until the day is ended', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 22, 0));
+    const p = await boot();
+    add(p, 'Ship it');
+    add(p, 'Emails');
+    p.addTask({ title: 'Vitamins', min: 0, kind: 'check', hue: 'lime', fixedAt: null });
+    p.startDay();
+    await p.flush();
+
+    vi.setSystemTime(new Date(2026, 8, 26, 1, 0));
+    const q = await boot();
+    expect(q.today).toBe(TODAY);
+    expect(q.viewKey).toBe(TODAY);
+    expect(q.n).toBe(1500);
+
+    await q.endDay(true);
+    await vi.waitFor(() => expect(q.viewKey).toBe(TOMORROW));
+    expect(q.today).toBe(TOMORROW);
+    expect(q.day.items.map((i) => i.title)).toEqual(['Emails', 'Vitamins']);
+    await q.flush();
+    const friday = await db.getDay(TODAY);
+    expect(friday?.dayEnded).toBe(1500);
+    expect(friday?.items.map((i) => [i.title, i.status])).toEqual([
+      ['Ship it', 'done'],
+      ['Emails', 'postponed'],
+      ['Vitamins', 'postponed'],
+    ]);
+  });
+
+  it('with a flexible start, counts the day from when it starts', async () => {
+    const p = await boot();
+    p.completeOnboarding({ start: 540, length: 600, flex: true });
+    add(p, 'Deep work', 90);
+    expect(p.planDay).toMatchObject({ dayStart: 600, wrap: 1200 });
+    expect(p.sch.rows[0].start).toBe(600);
+    vi.setSystemTime(new Date(2026, 8, 25, 10, 20));
+    p.tick();
+    p.startDay();
+    expect(p.day).toMatchObject({ dayStarted: 620, dayStart: 620, wrap: 1220 });
+  });
+
+  it('shows the welcome once, and never to someone who already has a plan', async () => {
+    const p = await boot();
+    expect(p.showWelcome).toBe(true);
+    p.completeOnboarding({ start: 420, length: 600, flex: false });
+    expect(p.showWelcome).toBe(false);
+    expect(p.settings).toMatchObject({ defStart: 420, dayLength: 600, defWrap: 1020, flexStart: false });
+    await p.flush();
+    expect((await boot()).showWelcome).toBe(false);
+
+    await p.eraseAll();
+    await db.putDay({ key: TODAY, dayStart: 540, wrap: 1020, dayStarted: null, items: [] });
+    expect((await boot()).showWelcome).toBe(false);
+  });
+
   it('erases everything', async () => {
     const p = await boot();
     add(p, 'A');

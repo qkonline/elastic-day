@@ -1,9 +1,13 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { fT, keyDate, shortDate } from '../lib/time';
+  import { dL, fNZ, fT, keyDate, shortDate } from '../lib/time';
   import DisarmBar from './DisarmBar.svelte';
 
   const c24 = $derived(P.settings.clock24);
+  const d = $derived(P.day);
+  // A time after midnight belongs to the night after this day.
+  const late = (m: number) => (m >= 1440 ? ' (next day)' : '');
+  const flexWaiting = $derived(P.settings.flexStart && P.isToday && d.dayStarted == null);
   const count = $derived(P.day.items.length);
   const tasks = $derived(`${count} task${count === 1 ? '' : 's'}`);
   const dateLabel = $derived(shortDate(keyDate(P.viewKey)));
@@ -12,7 +16,18 @@
 
 <div class="hours">
   <span class="hrs">
-    Day <span class="val">{fT(P.day.dayStart, c24)} – {fT(P.day.wrap, c24)}</span>
+    <span class="line">
+      {#if d.dayEnded != null && d.dayStarted != null}
+        Day <span class="val">{fNZ(d.dayStarted, c24)} – {fT(d.dayEnded, c24)}{late(d.dayEnded)}</span>
+      {:else if d.dayStarted != null}
+        Started <span class="val">{fNZ(d.dayStarted, c24)}</span>, wrap up by
+        <span class="val">{fT(d.wrap, c24)}{late(d.wrap)}</span>
+      {:else if flexWaiting}
+        Your day: <span class="val">{dL(P.settings.dayLength)} from Start my day</span>
+      {:else}
+        Day <span class="val">{fT(d.dayStart, c24)} – {fT(d.wrap, c24)}{late(d.wrap)}</span>
+      {/if}
+    </span>
     <button
       class="edit hit"
       style:--hit-x="4px"
@@ -58,8 +73,12 @@
   }
   .hrs {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 6px 10px;
+  }
+  .line {
+    line-height: 1.5;
   }
   .val {
     color: var(--text);

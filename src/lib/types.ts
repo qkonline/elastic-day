@@ -1,9 +1,11 @@
 // Times of day are minutes since local midnight of the item's day (540 = 9:00 am).
-// Timer timestamps use the same unit, can be fractional, and can exceed 1440 when a
-// task runs past midnight. Start/end times are never stored: see schedule.ts.
+// Timer timestamps use the same unit, can be fractional, and can exceed 1440: a day can run
+// on past midnight (1500 = 1:00 am the next morning). Start/end times are never stored: see
+// schedule.ts.
 
 export type Hue = 'orange' | 'yellow' | 'lime' | 'cyan' | 'indigo';
-export type Kind = 'task' | 'buffer' | 'fixed';
+/** 'check' = no duration and no timer, just ticked off (shown in the Checklist, not the timeline). */
+export type Kind = 'task' | 'buffer' | 'fixed' | 'check';
 export type Status = 'todo' | 'running' | 'paused' | 'done' | 'postponed' | 'skipped';
 export type Repeat = string; // 'Once' | 'Every day' | 'Weekdays' | `Every ${Weekday}`
 export type ThemePref = 'match' | 'light' | 'dark';
@@ -45,8 +47,11 @@ export interface Item {
 export interface Day {
   key: string;
   dayStart: number;
+  /** Planned wrap-up; past 1440 when the day is meant to run past midnight. */
   wrap: number;
   dayStarted: number | null;
+  /** Set by "End my day". A started day that hasn't ended stays Today after midnight. */
+  dayEnded?: number | null;
   items: Item[];
 }
 
@@ -63,7 +68,14 @@ export interface Settings {
   /** Day key before which the suggestion stays hidden ("Not now" = tomorrow). */
   notifyAskAfter: string | null;
   defStart: number;
+  /** Planned wrap-up for new days: defStart + dayLength (can pass midnight). */
   defWrap: number;
+  /** How long a productive day is, in minutes. */
+  dayLength: number;
+  /** "My start time varies": the day's plan and length count from Start my day. */
+  flexStart: boolean;
+  /** Has been through the welcome / first-visit setup. */
+  onboarded: boolean;
 }
 
 /** Template for a repeating item. Day items point at it through `seriesId`. */
@@ -101,4 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyAskAfter: null,
   defStart: 540,
   defWrap: 1020,
+  dayLength: 480,
+  flexStart: false,
+  onboarded: false,
 };

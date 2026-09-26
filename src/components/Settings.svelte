@@ -3,12 +3,16 @@
   import { planner as P } from '../lib/planner.svelte';
   import { hasNotifications, needsInstallForNotifications } from '../lib/platform';
   import { pushConfigured } from '../lib/push';
-  import { hhmm, hm, keyDate, shortDate } from '../lib/time';
+  import { dL, fT, keyDate, shortDate } from '../lib/time';
   import type { ShowTimes, ThemePref } from '../lib/types';
+  import DayShape, { describe, type Shape } from './DayShape.svelte';
   import DisarmBar from './DisarmBar.svelte';
 
   let fileEl: HTMLInputElement | null = $state(null);
   const S = $derived(P.settings);
+  const shape = $derived<Shape>({ start: S.defStart, length: S.dayLength, flex: S.flexStart });
+  const setShape = (x: Shape) =>
+    P.setSettings({ defStart: x.start, dayLength: x.length, defWrap: x.start + x.length, flexStart: x.flex });
   // The browser's permission can change from its own UI, so re-read it on every clock tick.
   const permission = $derived.by(() => {
     void P.clock;
@@ -148,25 +152,17 @@
   </section>
 
   <section class="card g12">
-    <span class="ct">Defaults for new days</span>
-    <div class="defaults">
-      <label>
-        Day starts
-        <input
-          type="time"
-          value={hhmm(S.defStart)}
-          onchange={(e) => e.currentTarget.value && P.setSettings({ defStart: hm(e.currentTarget.value) })}
-        />
-      </label>
-      <label>
-        Wrap up by
-        <input
-          type="time"
-          value={hhmm(S.defWrap)}
-          onchange={(e) => e.currentTarget.value && P.setSettings({ defWrap: hm(e.currentTarget.value) })}
-        />
-      </label>
+    <span class="ct">Your day</span>
+    <span class="muted">Used for days you haven't planned yet.</span>
+    <div class="setting">
+      <span class="ol">Starts</span>
+      <DayShape part="start" {shape} clock24={S.clock24} onchange={setShape} />
     </div>
+    <div class="setting">
+      <span class="ol">A productive day is</span>
+      <DayShape part="length" {shape} clock24={S.clock24} onchange={setShape} />
+    </div>
+    <span class="muted">Your day: {describe(shape, S.clock24, fT, dL)}</span>
   </section>
 
   <section class="card g12">
@@ -321,27 +317,6 @@
   }
   .self {
     align-self: flex-start;
-  }
-  .defaults {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px 20px;
-    font: 400 13px/1 var(--font);
-    color: var(--muted);
-  }
-  .defaults label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .defaults input {
-    height: 40px;
-    padding: 0 8px;
-    border-radius: 8px;
-    border: none;
-    background: var(--sunk);
-    color: var(--text);
-    font: 400 14px/1 var(--font);
   }
   .msg {
     font: 400 13px/1.4 var(--font);

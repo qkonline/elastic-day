@@ -33,5 +33,8 @@ export function sampleItems(start: number): Item[] {
     newItem({ title: 'Prep for client call', min: 45 }),
     newItem({ title: 'Buffer', min: 30, kind: 'buffer' }),
     newItem({ title: 'Invoices & admin', min: 45, hue: 'yellow' }),
+    // Things with no duration: ticked off on the checklist.
+    newItem({ title: 'Take vitamins', min: 0, kind: 'check', hue: 'lime' }),
+    newItem({ title: 'Check the mailbox', min: 0, kind: 'check', hue: 'indigo' }),
   ];
 }

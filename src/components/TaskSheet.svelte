@@ -2,7 +2,7 @@
   import { untrack } from 'svelte';
   import { planner as P } from '../lib/planner.svelte';
   import { itemVM, RUN } from '../lib/rows';
-  import { dL, hhmm, hm, keyDate, weekdayLong } from '../lib/time';
+  import { clockToDay, dL, hhmm, hm, keyDate, weekdayLong } from '../lib/time';
   import DisarmBar from './DisarmBar.svelte';
   import Fields, { KINDS } from './Fields.svelte';
   import PostponeChooser from './PostponeChooser.svelte';
@@ -40,6 +40,16 @@
     if (!v) P.closeSheet();
   });
 
+  // A check has no duration: picking one makes it a timed task, and "No time" makes a task a check.
+  const isCheck = $derived(it?.kind === 'check');
+  const late = $derived(Math.max(P.day.wrap, P.isToday ? P.n : 0));
+  function setDuration(m: number) {
+    if (!it || m === it.min) return;
+    if (m === 0) P.edit(id, { min: 0, kind: 'check', fixedAt: null, status: it.status === 'done' ? 'done' : 'todo' });
+    else if (isCheck) P.edit(id, { min: m, kind: 'task', status: 'todo', endedAt: null });
+    else P.edit(id, { min: m });
+  }
+
   let newSub = $state('');
   const ring = $derived(
     !v ? '' : v.s === 'paused' ? '2px solid var(--muted)' : v.isOver ? '2px solid #f87171' : `2px solid ${RUN}`,
@@ -64,7 +74,7 @@
     <div class="ht">
       <span class="summary">
         {[
-          dL(it.min),
+          isCheck ? 'No time' : dL(it.min),
           it.repeat !== 'Once' ? it.repeat : null,
           v.fixedAt ? 'fixed ' + v.fixedAt : null,
           it.kind === 'buffer' ? 'Buffer' : null,
@@ -125,24 +135,27 @@
     {/if}
 
     <div class="card">
-      <Fields field="duration" min={it.min} onMin={(m) => m !== it.min && P.edit(id, { min: m })} />
-      <div class="group">
-        <span class="label">Kind</span>
-        <div class="row">
-          {#each KINDS as [k, l] (k)}
-            <button class="chip" aria-pressed={it.kind === k} onclick={() => P.setKind(id, k)}>{l}</button>
-          {/each}
-          {#if it.kind === 'fixed'}
-            <input
-              class="time"
-              type="time"
-              aria-label="Fixed time"
-              value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
-              onchange={(e) => e.currentTarget.value && P.edit(id, { fixedAt: hm(e.currentTarget.value) })}
-            />
-          {/if}
+      <Fields field="duration" min={it.min} allowNone onMin={setDuration} />
+      {#if !isCheck}
+        <div class="group">
+          <span class="label">Kind</span>
+          <div class="row">
+            {#each KINDS as [k, l] (k)}
+              <button class="chip" aria-pressed={it.kind === k} onclick={() => P.setKind(id, k)}>{l}</button>
+            {/each}
+            {#if it.kind === 'fixed'}
+              <input
+                class="time"
+                type="time"
+                aria-label="Fixed time"
+                value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
+                onchange={(e) =>
+                  e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
+              />
+            {/if}
+          </div>
         </div>
-      </div>
+      {/if}
       <div class="group">
         <span class="label">Repeats</span>
         <div class="row">
@@ -155,11 +168,13 @@
         {/if}
       </div>
       <Fields field="colour" hue={it.hue} onHue={(h) => P.edit(id, { hue: h })} />
-      <div class="pos">
-        <span class="label">Position · {v.idx + 1} of {P.day.items.length}</span>
-        <button class="pb" onclick={() => P.move(id, -1)}>↑ Earlier</button>
-        <button class="pb" onclick={() => P.move(id, 1)}>↓ Later</button>
-      </div>
+      {#if !isCheck}
+        <div class="pos">
+          <span class="label">Position · {v.idx + 1} of {P.day.items.length}</span>
+          <button class="pb" onclick={() => P.move(id, -1)}>↑ Earlier</button>
+          <button class="pb" onclick={() => P.move(id, 1)}>↓ Later</button>
+        </div>
+      {/if}
     </div>
 
     <div class="card tight">
@@ -219,16 +234,18 @@
       {#if it.repeat !== 'Once'}
         <button class="fb muted" onclick={() => P.stopRepeating(id)}>Stop repeating</button>
       {/if}
-      {#if v.s === 'todo' || v.s === 'skipped'}
+      {#if isCheck}
+        <button class="fb" onclick={() => P.toggleCheck(id)}>{v.s === 'done' ? 'Untick' : 'Tick off'}</button>
+      {:else if v.s === 'todo' || v.s === 'skipped'}
         <button class="fb" onclick={() => (v.s === 'skipped' ? P.restore(id) : P.skip(id))}>
           {v.s === 'skipped' ? 'Restore' : 'Skip today'}
         </button>
       {/if}
     {/if}
-    {#if P.isToday && v.s === 'todo' && !postponeArmed}
+    {#if P.isToday && v.s === 'todo' && !postponeArmed && !isCheck}
       <button class="fb pp" onclick={() => P.arm('postpone', id)}>Postpone</button>
     {/if}
-    {#if v.s === 'done'}
+    {#if v.s === 'done' && !isCheck}
       <button class="fb" onclick={() => P.reopen(id)}>Reopen</button>
     {/if}
     <button class="close" onclick={() => P.closeSheet()}>Done</button>

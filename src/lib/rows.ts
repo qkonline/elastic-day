@@ -72,6 +72,12 @@ export interface Ctx {
 
 export const capHeight = (min: number) => Math.max(44, Math.round(min * 0.85));
 
+/** The line under a time: am/pm, plus "+1" once the day has run past midnight. */
+function suffix(m: number, clock24: boolean): string | null {
+  const parts = [apOf(m, clock24), m >= 1440 ? '+1' : null].filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
+}
+
 export function itemVM(r: Row, c: Ctx): ItemVM {
   const { it, idx } = r;
   const s = it.status,
@@ -168,9 +174,10 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
     badges,
     t1: t ? fTs(r.start, c.clock24) : null,
     t2: showEnd ? fTs(r.end, c.clock24) : null,
-    ap1: t ? apOf(r.start, c.clock24) : null,
-    ap2: showEnd ? apOf(r.end, c.clock24) : null,
-    fixedAt: it.kind === 'fixed' && it.fixedAt != null ? fT(it.fixedAt, c.clock24) : null,
+    ap1: t ? suffix(r.start, c.clock24) : null,
+    ap2: showEnd ? suffix(r.end, c.clock24) : null,
+    fixedAt:
+      it.kind === 'fixed' && it.fixedAt != null ? fT(it.fixedAt, c.clock24) + (it.fixedAt >= 1440 ? ' +1' : '') : null,
     hue: HUES[it.hue] ?? HUES.cyan,
     aStart: s === 'todo' && c.isToday && !missed && !pBuf && it.kind !== 'buffer',
     aCheck: s === 'done',
@@ -185,6 +192,7 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
 export function timelineRows(c: Ctx): TimelineRow[] {
   const out: TimelineRow[] = [];
   for (const r of c.rows) {
+    if (r.it.kind === 'check') continue; // checks live in the Checklist
     const v = itemVM(r, c);
     if (r.gap) out.push({ type: 'gap', key: 'g' + v.id, gap: dL(r.gap) });
     out.push(v);

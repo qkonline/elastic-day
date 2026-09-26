@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newItem } from './actions';
 import { isMissed, schedule, worked } from './schedule';
-import { minutesInto } from './time';
+import { clockToDay, minutesInto } from './time';
 import type { Day, Item } from './types';
 
 const day = (items: Item[], o: Partial<Day> = {}): Day => ({
@@ -108,5 +108,36 @@ describe('minutesInto', () => {
     expect(minutesInto('2026-11-01', new Date(2026, 10, 1, 10, 0).getTime())).toBe(600);
     // Past midnight counts on from the same day.
     expect(minutesInto('2026-09-25', new Date(2026, 8, 26, 0, 30).getTime())).toBe(1470);
+  });
+});
+
+describe('clockToDay', () => {
+  it('reads small clock times as the next morning on a day that runs past midnight', () => {
+    expect(clockToDay(60, 1500)).toBe(1500); // 1 am, at 1 am
+    expect(clockToDay(120, 1500)).toBe(1560); // 2 am, an hour from now
+    expect(clockToDay(600, 1500)).toBe(600); // 10 am is still this morning
+    expect(clockToDay(60, 900)).toBe(60); // before midnight nothing changes
+  });
+});
+
+describe('checks', () => {
+  it('take no room on the timeline and are never missed', () => {
+    const chk = t('mail', 0, { kind: 'check' });
+    const { rows, finish } = schedule(day([t('a', 30), chk, t('b', 30)]), 700);
+    expect(rows.map((r) => r.end - r.start)).toEqual([30, 0, 30]);
+    expect(finish).toBe(600);
+    expect(isMissed(rows[1], 700)).toBe(false);
+  });
+
+  it('count no time worked, even when ticked', () => {
+    expect(worked(t('mail', 0, { kind: 'check', status: 'done', endedAt: 600 }), 700)).toBe(0);
+  });
+});
+
+describe('an ended day', () => {
+  it('flags nothing, since nothing is left to fit', () => {
+    const d = day([t('a', 600), t('b', 60)], { dayStarted: 540, dayEnded: 700 });
+    expect(schedule(d, 700).rows.some((r) => r.pastEnd || r.runsInto)).toBe(false);
+    expect(schedule({ ...d, dayEnded: null }, 700).rows.some((r) => r.pastEnd)).toBe(true);
   });
 });

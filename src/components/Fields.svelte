@@ -21,6 +21,7 @@
   let {
     field,
     min = 0,
+    allowNone = false,
     onMin,
     hue,
     onHue,
@@ -28,15 +29,17 @@
   }: {
     field: 'duration' | 'colour';
     min?: number;
+    /** Offer "No time": a check that's ticked off rather than timed (min 0). */
+    allowNone?: boolean;
     onMin?: (m: number) => void;
     hue?: Hue;
     onHue?: (h: Hue) => void;
     ringBg?: string;
   } = $props();
 
-  const isPreset = $derived(PICKS.includes(min));
+  const isPreset = $derived(PICKS.includes(min) || min === 0);
   // A duration that isn't a preset (e.g. the rest of a postponed task) opens the picker.
-  let customOpen = $state(untrack(() => !PICKS.includes(min)));
+  let customOpen = $state(untrack(() => min !== 0 && !PICKS.includes(min)));
   const hours = $derived(Math.floor(min / 60));
   const mins = $derived(min % 60);
   // Five-minute steps, plus whatever the current value is so it can always be shown.
@@ -66,8 +69,21 @@
         class="chip"
         aria-pressed={customOpen || !isPreset}
         aria-expanded={customOpen}
-        onclick={() => (customOpen = !customOpen)}>{isPreset ? 'Custom' : dL(min)}</button
+        onclick={() => {
+          customOpen = !customOpen;
+          if (customOpen && min === 0) onMin?.(30);
+        }}>{isPreset ? 'Custom' : dL(min)}</button
       >
+      {#if allowNone}
+        <button
+          class="chip"
+          aria-pressed={min === 0}
+          onclick={() => {
+            customOpen = false;
+            onMin?.(0);
+          }}>No time</button
+        >
+      {/if}
     </div>
     {#if customOpen}
       <div class="custom">

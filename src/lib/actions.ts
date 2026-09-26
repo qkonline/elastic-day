@@ -67,7 +67,7 @@ function toCurrentPoint(items: Item[], id: string): Item[] {
   const rest = items.filter((x) => x.id !== id);
   let at = 0;
   rest.forEach((x, k) => {
-    if (x.status !== 'todo') at = k + 1;
+    if (x.kind !== 'check' && x.status !== 'todo') at = k + 1; // checks live in the checklist
   });
   rest.splice(at, 0, self);
   return rest;
@@ -79,7 +79,7 @@ function toCurrentPoint(items: Item[], id: string): Item[] {
  */
 export function startItem(day: Day, id: string, n: number): Day {
   const target = find(day, id);
-  if (!target || target.kind === 'buffer') return day;
+  if (!target || target.kind === 'buffer' || target.kind === 'check') return day;
   const items = day.items.map((i): Item => {
     if (i.id === id)
       return { ...i, status: 'running', startedAt: n, endedAt: null, pausedAt: null, pausedFor: 0, marked: false };
@@ -88,16 +88,34 @@ export function startItem(day: Day, id: string, n: number): Day {
       return { ...i, status: 'done', pausedFor: pausedSoFar(i, n), pausedAt: null, endedAt: n };
     return i;
   });
-  return { ...day, dayStarted: day.dayStarted ?? n, items: toCurrentPoint(items, id) };
+  // Starting something on a day already ended reopens it.
+  return { ...day, dayStarted: day.dayStarted ?? n, dayEnded: null, items: toCurrentPoint(items, id) };
 }
 
 /** "Start my day": stamp the day and start the first pending task (or fixed item). */
 export function startDay(day: Day, n: number): Day {
-  const first =
-    day.items.find((i) => i.status === 'todo' && i.kind === 'task') ??
-    day.items.find((i) => i.status === 'todo' && i.kind !== 'buffer');
-  const d = { ...day, dayStarted: n };
+  const timed = (i: Item) => i.status === 'todo' && i.kind !== 'buffer' && i.kind !== 'check';
+  const first = day.items.find((i) => timed(i) && i.kind === 'task') ?? day.items.find(timed);
+  const d = { ...day, dayStarted: n, dayEnded: null };
   return first ? startItem(d, first.id, n) : d;
+}
+
+/** Tick or untick a check (a task with no duration). */
+export function toggleCheck(day: Day, id: string, n: number): Day {
+  return mapItem(day, id, (i) =>
+    i.kind !== 'check' ? {} : i.status === 'done' ? { status: 'todo', endedAt: null } : { status: 'done', endedAt: n },
+  );
+}
+
+/** "End my day": finish whatever is running or paused, and mark the day as ended. */
+export function endDay(day: Day, n: number): Day {
+  const act = activeItem(day);
+  const d = act ? finish(day, act.id, n) : day;
+  return { ...d, dayEnded: n };
+}
+
+export function reopenDay(day: Day): Day {
+  return { ...day, dayEnded: null };
 }
 
 export function pause(day: Day, id: string, n: number): Day {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { dayDiff, fNZ, keyDate, monthShort, shortDate, weekdayLong } from '../lib/time';
+  import { dayDiff, keyDate, monthShort, shortDate, weekdayLong } from '../lib/time';
 
   const vDate = $derived(keyDate(P.viewKey));
   const diff = $derived(dayDiff(P.today, P.viewKey));
@@ -29,8 +29,10 @@
     <div class="small">{small}</div>
     <h1 class="title">{dayName}</h1>
   </div>
-  {#if P.isToday && started}
-    <span class="started">Day started at {fNZ(P.day.dayStarted!, P.settings.clock24)}</span>
+  {#if P.isToday && started && P.day.dayEnded == null}
+    <button class="today" onclick={() => P.openSheet({ type: 'wrapup' })}>End my day</button>
+  {:else if P.isToday && started}
+    <button class="today" onclick={() => P.reopenDay()}>Reopen day</button>
   {:else if !P.isToday}
     <!-- The dot is the timeline's "now" marker: this takes you back to now. -->
     <button class="today" onclick={() => P.backToToday()}><span class="now"></span>Back to today</button>
@@ -103,12 +105,6 @@
     margin: 0;
     font: 400 26px/1.05 var(--font);
     letter-spacing: -0.02em;
-  }
-  .started {
-    font: 400 13px/1 var(--font);
-    color: var(--muted);
-    padding: 0 4px;
-    white-space: nowrap;
   }
   .settings {
     width: 44px;

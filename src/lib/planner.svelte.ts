@@ -10,12 +10,30 @@ import { cancelPush, preparePush, schedulePush, unsubscribePush } from './push';
 import { materialize, seriesFromItem, syncSeriesInto } from './repeat';
 import { sampleItems } from './sample';
 import { isActive, schedule, worked } from './schedule';
-import { addDays, dayDiff, fT, hhmm, hm, keyDate, minutesInto, mondayOf, shortDate, todayKey } from './time';
+import {
+  addDays,
+  clockToDay,
+  dayDiff,
+  fT,
+  hhmm,
+  hm,
+  keyDate,
+  minutesInto,
+  mondayOf,
+  shortDate,
+  todayKey,
+} from './time';
+import { activeDayKey } from './today';
 import type { Day, Hue, Item, Kind, Series, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
 export type Sheet =
-  { type: 'task'; id: string } | { type: 'settings' } | { type: 'hours' } | { type: 'add' } | { type: 'install' };
+  | { type: 'task'; id: string }
+  | { type: 'settings' }
+  | { type: 'hours' }
+  | { type: 'add' }
+  | { type: 'install' }
+  | { type: 'wrapup' };
 export type ConfirmType = 'postpone' | 'delete' | 'clear' | 'erase' | 'sample';
 export interface Confirm {
   type: ConfirmType;
@@ -83,7 +101,19 @@ export class Planner {
   isToday = $derived(this.viewKey === this.today);
   /** Now, in minutes since midnight of the viewed day. */
   n = $derived(minutesInto(this.viewKey, this.clock));
-  sch = $derived(schedule(this.day, this.n));
+  /**
+   * The viewed day as the plan sees it. With a flexible start, today's plan (until the day is
+   * started) runs from now for the usual day length.
+   */
+  planDay: Day = $derived.by(() => {
+    const d = this.day;
+    if (!this.settings.flexStart || !this.isToday || d.dayStarted != null) return d;
+    const start = Math.ceil(this.n / 5) * 5;
+    return { ...d, dayStart: start, wrap: start + this.settings.dayLength };
+  });
+  sch = $derived(schedule(this.planDay, this.n));
+  /** First visit: show the welcome until it's been completed or skipped. */
+  showWelcome = $derived(this.ready && !this.settings.onboarded);
   active = $derived(this.day.items.find(isActive) ?? null);
   /** A timer running or paused on a day other than the one on screen (e.g. left on last night). */
   elsewhere = $derived.by(() => {
@@ -115,9 +145,18 @@ export class Planner {
     try {
       const [s, series] = await Promise.all([db.getSettings(), db.getAllSeries()]);
       this.settings = { ...DEFAULT_SETTINGS, ...(s ?? {}), ...(s ? {} : { themePref: this.settings.themePref }) };
+      // Settings saved before day length and the welcome existed: derive the one, skip the other.
+      if (s && s.dayLength == null)
+        this.settings = { ...this.settings, dayLength: Math.max(60, this.settings.defWrap - this.settings.defStart) };
+      if (s && s.onboarded == null) this.settings = { ...this.settings, onboarded: true };
       this.series = series;
+      // Yesterday has to be loaded first: if it's still going, it's Today.
+      await this.loadRecent();
+      this.today = activeDayKey(todayKey(), this.days, Date.now());
+      this.viewKey = this.today;
       await this.ensureDay(this.today);
-      await Promise.all([this.loadWeek(), this.loadRecent()]);
+      await this.loadWeek();
+      if (!s && (this.stored.size || series.length)) this.setSettings({ onboarded: true });
       // Anything already over time when the page loads has had its alert.
       for (const d of Object.values(this.days))
         for (const it of d.items) if (isActive(it) && worked(it, minutesInto(d.key)) >= it.min) this.alerted.add(it.id);
@@ -172,7 +211,7 @@ export class Planner {
 
   tick(): void {
     this.clock = Date.now();
-    const tk = todayKey();
+    const tk = activeDayKey(todayKey(), this.days, this.clock);
     if (tk !== this.today) this.rollover(tk);
     if (this.confirm && Date.now() - this.confirm.at > CONFIRM_MS) this.confirm = null;
     for (const d of Object.values(this.days)) {
@@ -415,20 +454,70 @@ export class Planner {
   startDay(): void {
     unlockAudio();
     const n = this.n;
-    const first =
-      this.day.items.find((i) => i.status === 'todo' && i.kind === 'task') ??
-      this.day.items.find((i) => i.status === 'todo' && i.kind !== 'buffer');
+    const timed = (i: Item) => i.status === 'todo' && i.kind !== 'buffer' && i.kind !== 'check';
+    const first = this.day.items.find((i) => timed(i) && i.kind === 'task') ?? this.day.items.find(timed);
     if (first) {
       this.alerted.delete(first.id);
       this.finishElsewhere();
     }
-    this.update((d) => A.startDay(d, n), first ? `${first.title} started` : 'Day started');
+    // With a flexible start, the day's length counts from now.
+    const s = this.settings;
+    const flex = s.flexStart ? { dayStart: n, wrap: n + s.dayLength } : {};
+    this.update((d) => ({ ...A.startDay(d, n), ...flex }), first ? `${first.title} started` : 'Day started');
     if (first) this.offerNotifications();
+  }
+
+  /** "End my day", optionally moving what's left (one-off tasks and checks) to the next day. */
+  async endDay(moveRest: boolean): Promise<void> {
+    const key = this.viewKey,
+      n = this.n;
+    let d = A.endDay(this.day, n);
+    const left = moveRest
+      ? d.items.filter((i) => i.status === 'todo' && i.kind !== 'buffer' && i.repeat === 'Once')
+      : [];
+    const copies: Item[] = [];
+    for (const it of left) {
+      const res = A.moveOut(d, it.id, addDays(key, 1), n);
+      if (res) {
+        d = res.day;
+        copies.push(res.copy);
+      }
+    }
+    this.sheet = null;
+    this.put(d);
+    if (copies.length) {
+      const next = await this.ensureDay(addDays(key, 1));
+      this.put({ ...next, items: [...next.items, ...copies] });
+    }
+    this.say(copies.length ? `Day ended; ${copies.length} moved to tomorrow` : 'Day ended');
+    this.tick(); // past midnight, Today moves on to the new date
+  }
+
+  reopenDay(): void {
+    this.update((d) => A.reopenDay(d), 'Day reopened');
+    this.tick();
+  }
+
+  toggleCheck(id: string): void {
+    const it = this.item(id);
+    if (!it) return;
+    this.update((d) => A.toggleCheck(d, id, this.n), `${it.title} ${it.status === 'done' ? 'not done' : 'done'}`);
+  }
+
+  /** The welcome's answers become the defaults for new days. */
+  completeOnboarding(o: { start: number; length: number; flex: boolean }): void {
+    this.setSettings({
+      defStart: o.start,
+      dayLength: o.length,
+      defWrap: o.start + o.length,
+      flexStart: o.flex,
+      onboarded: true,
+    });
   }
 
   startItem(id: string): void {
     const it = this.item(id);
-    if (!it || it.kind === 'buffer') return;
+    if (!it || it.kind === 'buffer' || it.kind === 'check') return;
     unlockAudio();
     this.alerted.delete(id);
     this.confirm = null;
@@ -524,7 +613,7 @@ export class Planner {
   reschedLater(id: string): void {
     const it = this.item(id);
     if (!it || !this.resched) return;
-    const tm = Math.max(hm(this.resched.time), this.n);
+    const tm = Math.max(clockToDay(hm(this.resched.time), Math.max(this.day.wrap, this.n)), this.n);
     this.resched = null;
     this.update(
       (d) => A.reschedLater(d, id, tm, this.n),
@@ -550,7 +639,11 @@ export class Planner {
 
   addTask(o: { title: string; min: number; kind: Kind; hue: Hue; fixedAt: number | null; repeat?: string }): void {
     const { repeat, ...fields } = o;
-    const it = A.newItem({ ...fields, fixedAt: o.kind === 'fixed' ? o.fixedAt : null });
+    const it = A.newItem({
+      ...fields,
+      min: o.kind === 'check' ? 0 : o.min,
+      fixedAt: o.kind === 'fixed' ? o.fixedAt : null,
+    });
     this.sheet = null;
     this.update((d) => A.addItem(d, it), `Added ${it.title}`);
     // A repeating task becomes a series straight away, like choosing a repeat in the task sheet.
