@@ -74,7 +74,7 @@
           .join(' · ')}
       </span>
       <input
-        class="title"
+        class="title large-text"
         value={it.title}
         aria-label="Title"
         oninput={(e) => P.edit(id, { title: e.currentTarget.value })}
@@ -290,6 +290,9 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+  .body > :global(*) {
+    flex-shrink: 0;
   }
   .timer {
     padding: 16px;

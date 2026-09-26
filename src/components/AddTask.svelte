@@ -29,7 +29,14 @@
   <button class="close-x" aria-label="Close" onclick={() => P.closeSheet()}>×</button>
 </div>
 <div class="body">
-  <input class="name" data-autofocus bind:value={title} onkeydown={enter} {placeholder} aria-label="Task name" />
+  <input
+    class="name large-text"
+    data-autofocus
+    bind:value={title}
+    onkeydown={enter}
+    {placeholder}
+    aria-label="Task name"
+  />
   <Fields field="duration" {min} onMin={(m) => (min = m)} />
   <div class="group">
     <span class="label">Kind</span>
@@ -77,12 +84,16 @@
     flex-direction: column;
     gap: 18px;
   }
+  /* When the keyboard leaves little room, scroll the form rather than squash its fields. */
+  .body > :global(*) {
+    flex-shrink: 0;
+  }
   .name {
-    height: 52px;
-    border-radius: 12px;
+    height: 56px;
+    border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--raised);
-    padding: 0 14px;
+    padding: 0 18px;
     font: 400 17px/1 var(--font);
     color: var(--text);
     outline: none;
@@ -119,6 +130,14 @@
     gap: 10px;
     padding: 12px 20px calc(26px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
+  }
+  /* Keyboard up: every pixel counts, and the home indicator is hidden behind it anyway. */
+  :global(.keyboard-open) .foot {
+    padding-bottom: 12px;
+    justify-content: flex-end;
+  }
+  :global(.keyboard-open) .note {
+    display: none;
   }
   .note {
     flex: 1;

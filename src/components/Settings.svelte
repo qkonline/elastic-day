@@ -235,6 +235,9 @@
     flex-direction: column;
     gap: 12px;
   }
+  .body > :global(*) {
+    flex-shrink: 0;
+  }
   .card {
     padding: 16px;
     border-radius: 16px;

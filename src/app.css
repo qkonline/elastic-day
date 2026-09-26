@@ -121,9 +121,10 @@ button {
   appearance: none;
 }
 
-/* iOS zooms the page into any form field with text under 16px; on touch screens keep them at 16. */
+/* iOS zooms the page into any form field with text under 16px; on touch screens bring the
+   small ones up to 16. Fields already bigger than that are marked .large-text and left alone. */
 @media (pointer: coarse) {
-  input,
+  input:not(.large-text),
   textarea,
   select {
     font-size: 16px !important;

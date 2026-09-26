@@ -9,10 +9,15 @@ export function trackKeyboard(): void {
   const vv = window.visualViewport;
   if (!vv) return;
   const root = document.documentElement;
+  const touch = window.matchMedia('(pointer: coarse)');
   const update = () => {
     const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     root.style.setProperty('--kb', `${Math.round(covered)}px`);
     root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    // Android resizes the page instead, so on touch screens also treat a big drop in visible
+    // height as the keyboard.
+    const shrunk = touch.matches && vv.height < window.screen.height * 0.6;
+    root.classList.toggle('keyboard-open', covered > 80 || shrunk);
   };
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
