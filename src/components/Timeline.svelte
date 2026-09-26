@@ -24,7 +24,13 @@
   const moved = (key: string) => (shifts[key] ? `translateY(${shifts[key]}px)` : undefined);
 </script>
 
-<ol class="timeline" class:sorting={!!P.drag} bind:this={listEl} aria-label="Plan for the day">
+<ol
+  class="timeline"
+  class:no-times={!showTimes}
+  class:sorting={!!P.drag}
+  bind:this={listEl}
+  aria-label="Plan for the day"
+>
   {#each rows as r (r.key)}
     {#if r.type === 'item'}
       <ItemRow v={r} list={() => listEl} shift={shifts[r.key] ?? 0} />
@@ -48,6 +54,14 @@
     padding: 10px var(--px) 12px;
     display: flex;
     flex-direction: column;
+  }
+  /* Times hidden (setting, or the day hasn't started): drop their column, and the spine and
+     tasks move over into the space. Every row sizes that column from --tc. */
+  .timeline.no-times {
+    --tc: 0px;
+  }
+  .timeline.no-times :global(.times) {
+    padding: 0;
   }
   .gap {
     display: grid;
