@@ -44,7 +44,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 6px calc(var(--px) - 6px) 2px;
+    padding: 12px calc(var(--px) - 6px) 2px;
   }
   .arrow {
     width: 26px;

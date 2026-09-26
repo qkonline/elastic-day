@@ -11,6 +11,7 @@
   import NotifyPrompt from './components/NotifyPrompt.svelte';
   import PullIndicator from './components/PullIndicator.svelte';
   import RunningElsewhere from './components/RunningElsewhere.svelte';
+  import StartDay from './components/StartDay.svelte';
   import Settings from './components/Settings.svelte';
   import Sheet from './components/Sheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
@@ -112,6 +113,7 @@
   <div class="page" inert={!!P.sheet} {@attach dayGestures(P)}>
     <Header />
     <WeekStrip />
+    <StartDay />
     <RunningElsewhere />
     <NotifyPrompt />
     <main

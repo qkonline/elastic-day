@@ -22,9 +22,6 @@
         : `${weekdayLong(vDate)}, ${-diff} days ago`,
   );
   const started = $derived(P.day.dayStarted != null);
-  const showStart = $derived(
-    P.isToday && !started && P.day.items.some((i) => i.status === 'todo' && i.kind !== 'buffer'),
-  );
 </script>
 
 <header class="header">
@@ -32,9 +29,7 @@
     <div class="small">{small}</div>
     <h1 class="title">{dayName}</h1>
   </div>
-  {#if showStart}
-    <button class="startday" onclick={() => P.startDay()}><span>▶</span>Start my day</button>
-  {:else if P.isToday && started}
+  {#if P.isToday && started}
     <span class="started">Day started at {fNZ(P.day.dayStarted!, P.settings.clock24)}</span>
   {:else if !P.isToday}
     <!-- The dot is the timeline's "now" marker: this takes you back to now. -->
@@ -108,23 +103,6 @@
     margin: 0;
     font: 400 26px/1.05 var(--font);
     letter-spacing: -0.02em;
-  }
-  .startday {
-    height: 44px;
-    padding: 0 18px;
-    border-radius: 999px;
-    border: none;
-    background: var(--text);
-    color: var(--bg);
-    font: 400 15px/1 var(--font);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .startday span {
-    font-size: 11px;
   }
   .started {
     font: 400 13px/1 var(--font);
