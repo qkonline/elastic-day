@@ -1,0 +1,306 @@
+@import '@fontsource/geist-sans/300.css';
+@import '@fontsource/geist-sans/400.css';
+
+/* Theme tokens. Light by default; dark follows the device unless the user picked a theme
+   (index.html sets data-theme before first paint). */
+:root {
+  --bg: #f6f7f9;
+  --raised: #ffffff;
+  --sunk: #eceef2;
+  --border: #e2e5ea;
+  --line: #d8dce3;
+  --text: #16181d;
+  --muted: #6b7280;
+  --faint: #9aa1ac;
+  --orT: #c2410c;
+  --grT: #15803d;
+  --redT: #dc2626;
+  --yelT: #854d0e;
+  --scrim: rgba(22, 24, 29, 0.34);
+  --pfill: rgba(107, 114, 128, 0.24);
+  --now: #f97316;
+  --nowT: #c2410c;
+  color-scheme: light;
+
+  /* Layout (phone). */
+  --tc: 46px;
+  --sc: 44px;
+  --ac: 78px;
+  --cw: 40px;
+  --px: 16px;
+  --btn: 44px;
+  --header-h: 62px;
+
+  --font: 'Geist Sans', 'Geist', system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1014;
+    --raised: #1a1d24;
+    --sunk: #15181e;
+    --border: #262a33;
+    --line: #2b303a;
+    --text: #f2f3f5;
+    --muted: #8d95a3;
+    --faint: #626b7a;
+    --orT: #fb923c;
+    --grT: #4ade80;
+    --redT: #f87171;
+    --yelT: #fde047;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --pfill: rgba(141, 149, 163, 0.3);
+    --now: #fb923c;
+    --nowT: #fdba74;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e1014;
+  --raised: #1a1d24;
+  --sunk: #15181e;
+  --border: #262a33;
+  --line: #2b303a;
+  --text: #f2f3f5;
+  --muted: #8d95a3;
+  --faint: #626b7a;
+  --orT: #fb923c;
+  --grT: #4ade80;
+  --redT: #f87171;
+  --yelT: #fde047;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --pfill: rgba(141, 149, 163, 0.3);
+  --now: #fb923c;
+  --nowT: #fdba74;
+  color-scheme: dark;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --tc: 74px;
+    --sc: 54px;
+    --ac: 96px;
+    --cw: 48px;
+    --px: 28px;
+    --btn: 40px;
+    --header-h: 80px;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font: 400 15px/1.4 var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body.locked {
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-weight: 400;
+  margin: 0;
+}
+
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type='time'],
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 1em;
+}
+
+a {
+  color: var(--orT);
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Shared small components. */
+.chip {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  font: 400 14px/1 var(--font);
+  background: var(--sunk);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 240ms,
+    color 240ms;
+}
+.chip[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.label {
+  font: 400 12px/1 var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.btn-plain {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  font: 400 13px/1 var(--font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+/* Timer control buttons (active row, task sheet). */
+.ctl {
+  height: var(--btn);
+  flex: 1 1 0;
+  padding: 0 16px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: 400 14px/1 var(--font);
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  transition:
+    background 240ms,
+    color 240ms,
+    border-color 240ms;
+}
+.ctl .g {
+  font-size: 12px;
+}
+.ctl.primary {
+  background: #334155;
+  color: #f8fafc;
+  border-color: #334155;
+}
+.ctl.done {
+  background: #22c55e;
+  color: #ffffff;
+  border-color: #16a34a;
+}
+.ctl.ghost {
+  flex: 1 1 100%;
+  height: 40px;
+  background: transparent;
+  border: 1.5px solid #fb923c;
+  color: var(--orT);
+}
+
+/* Options inside an inline confirm (e.g. Later today / Tomorrow). */
+.opt {
+  height: var(--btn);
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+  font: 400 14px/1 var(--font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.opt.pri {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+.opt.danger {
+  border: none;
+  background: #f87171;
+  color: #16181d;
+}
+
+/* Small inline "are you sure?" buttons (Delete, Erase, Replace). */
+.btn-yes,
+.btn-no {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font: 400 13px/1 var(--font);
+  cursor: pointer;
+}
+.btn-yes {
+  border: none;
+  background: #f87171;
+  color: #16181d;
+}
+.btn-no {
+  border: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--text);
+}
+
+/* Round × in sheet headers. */
+.close-x {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 99px;
+  border: none;
+  background: var(--sunk);
+  color: var(--muted);
+  font: 400 20px/1 var(--font);
+  cursor: pointer;
+}
+
+/* Grows a small control's tap area (to 44px on phones) without changing how it looks.
+   Set --hit-x / --hit-y to how far the area should reach past each edge. */
+.hit {
+  position: relative;
+}
+.hit::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--hit-y, 6px)) calc(-1 * var(--hit-x, 6px));
+}

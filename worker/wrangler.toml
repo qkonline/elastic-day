@@ -1,0 +1,22 @@
+# Push worker for Elastic Day. Deploy with `npx wrangler deploy` from this folder (Wrangler
+# needs Node 22+). The private key is a secret: `npx wrangler secret put VAPID_PRIVATE_KEY`.
+name = "elastic-day-push"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+VAPID_PUBLIC_KEY = "BIUrkbS-EnZQ2hLavgQmshFuBLt_mD2aD4l9VLtB5mEhCQjF9CQDBRRWlEMcdkkdtiVz--i3rZocPSV3abVpycY"
+VAPID_SUBJECT = "https://kaiserkhan.com/planner/"
+ALLOWED_ORIGINS = "https://kaiserkhan.com,http://localhost:4173"
+
+[[durable_objects.bindings]]
+name = "TIMERS"
+class_name = "Timer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Timer"]
+
+[observability]
+enabled = true
