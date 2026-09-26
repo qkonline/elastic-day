@@ -29,7 +29,7 @@
     height: 44px;
     padding: 0 22px;
     border-radius: 999px;
-    border: none;
+    border: 2px solid #ffffff;
     background: linear-gradient(90deg, #fb923c, #fde047, #a3e635, #22d3ee, #818cf8);
     color: #16181d;
     font: 400 15px/1 var(--font);
