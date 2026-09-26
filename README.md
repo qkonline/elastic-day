@@ -102,3 +102,7 @@ DEPLOY_PATH=path/to/public_html/planner
 ```
 
 `npm run deploy -- --dry-run` shows what would change first. To serve it from a different path, change `base` in `vite.config.ts` and the paths in `public/manifest.webmanifest`.
+
+## License
+
+[MIT](LICENSE) © Qaisar Khan

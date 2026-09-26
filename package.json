@@ -3,6 +3,8 @@
   "private": true,
   "version": "2.4.0",
   "description": "A one-day planner where the order of the list is the plan.",
+  "license": "MIT",
+  "author": "Qaisar Khan <kaiser@kaiserkhan.com>",
   "type": "module",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
