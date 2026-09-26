@@ -38,9 +38,7 @@
     <span class="started">Day started at {fNZ(P.day.dayStarted!, P.settings.clock24)}</span>
   {:else if !P.isToday}
     <!-- The dot is the timeline's "now" marker: this takes you back to now. -->
-    <button class="today" aria-label="Back to today" onclick={() => P.backToToday()}
-      ><span class="now"></span>Today</button
-    >
+    <button class="today" onclick={() => P.backToToday()}><span class="now"></span>Back to today</button>
   {/if}
   <button class="settings" aria-label="Settings" onclick={() => P.openSheet({ type: 'settings' })}>
     <span class="hex"><span class="hex-in"><span class="ring"></span></span></span>

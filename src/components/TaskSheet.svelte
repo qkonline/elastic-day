@@ -22,7 +22,6 @@
           isToday: P.isToday,
           showTimes: true,
           clock24: P.settings.clock24,
-          drag: null,
         })
       : null,
   );

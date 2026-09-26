@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { capsuleDown, tapped } from '../lib/drag';
+  import { justDragged, pickUp, tapped } from '../lib/drag';
   import { planner as P } from '../lib/planner.svelte';
   import type { ItemVM } from '../lib/rows';
   import { dL } from '../lib/time';
@@ -9,7 +9,7 @@
   import Reschedule from './Reschedule.svelte';
   import StepBox from './StepBox.svelte';
 
-  let { v, list }: { v: ItemVM; list: () => HTMLElement | null } = $props();
+  let { v, list, shift = 0 }: { v: ItemVM; list: () => HTMLElement | null; shift?: number } = $props();
 
   const id = $derived(v.id);
   const it = $derived(v.it);
@@ -59,7 +59,16 @@
         : 'rgba(234,179,8,.6)',
   );
 
-  const open = () => P.openSheet({ type: 'task', id });
+  // Press and hold anywhere on the task's text to pick it up (touch). A pointer-only shortcut:
+  // keyboard and screen-reader users move tasks with Earlier / Later in the task sheet.
+  function holdToDrag(el: HTMLElement) {
+    const down = (e: PointerEvent) => pickUp(P, e, id, list, 'row');
+    el.addEventListener('pointerdown', down);
+    return () => el.removeEventListener('pointerdown', down);
+  }
+
+  // Not when this tap is the end of a press-and-hold drag.
+  const open = () => !justDragged() && P.openSheet({ type: 'task', id });
   const capKey = (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -73,14 +82,16 @@
   class="row"
   class:active={v.active}
   class:hovered={hovered && !v.active}
-  style:opacity={lifted ? 0.35 : v.op}
+  class:lifted
+  style:opacity={lifted ? 1 : v.op}
+  style:transform={lifted ? `translateY(${P.drag!.dy}px) scale(1.02)` : shift ? `translateY(${shift}px)` : undefined}
   style:min-height="{v.h + 8}px"
   style:--box-bg={boxBg}
   style:--box-ring={boxRing}
   onmouseenter={() => desktop.current && P.hover !== id && (P.hover = id)}
   onmouseleave={() => P.hover === id && (P.hover = null)}
 >
-  <div class="times">
+  <div class="times" {@attach holdToDrag}>
     {#if v.t1}<span class="t1">{v.t1}</span>{/if}
     {#if v.ap1}<span class="ap">{v.ap1}</span>{/if}
     {#if v.t2}<span class="t2">{v.t2}</span>{/if}
@@ -99,7 +110,7 @@
       style:height="{v.h}px"
       style:background={v.capBg}
       style:border={v.capBorder}
-      onpointerdown={(e) => capsuleDown(P, e, id, list)}
+      onpointerdown={(e) => pickUp(P, e, id, list, 'capsule')}
       onclick={() => tapped(P, id)}
       onkeydown={capKey}
       oncontextmenu={(e) => e.preventDefault()}
@@ -112,7 +123,7 @@
     </span>
   </div>
 
-  <div class="content">
+  <div class="content" {@attach holdToDrag}>
     <div class="meta">
       <button class="dur hit" style:--hit-x="4px" style:--hit-y="12px" onclick={open}>{dL(it.min)}</button>
       {#if v.sub}<span style:color={v.subTone}>{v.sub}</span>{/if}
@@ -209,6 +220,21 @@
       opacity 200ms,
       background 240ms,
       box-shadow 240ms;
+  }
+  /* Picked up: floats above the list and follows the finger. */
+  .row.lifted {
+    z-index: 5;
+    background: var(--raised);
+    box-shadow: 0 14px 32px -10px rgba(0, 0, 0, 0.35);
+    border-radius: 16px;
+    transition: box-shadow 150ms;
+  }
+  /* Long-press on a task picks it up, so don't let the phone select its text or pop a menu. */
+  .times,
+  .content {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   .row.hovered {
     background: var(--sunk);

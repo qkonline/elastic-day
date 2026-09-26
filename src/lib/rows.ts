@@ -59,8 +59,7 @@ export interface ItemVM {
   nowIn: number | null;
 }
 
-export type TimelineRow =
-  ItemVM | { type: 'gap'; key: string; gap: string } | { type: 'drop'; key: string } | { type: 'now'; key: string };
+export type TimelineRow = ItemVM | { type: 'gap'; key: string; gap: string } | { type: 'now'; key: string };
 
 export interface Ctx {
   day: Day;
@@ -69,7 +68,6 @@ export interface Ctx {
   isToday: boolean;
   showTimes: boolean;
   clock24: boolean;
-  drag: { id: string; over: number | null } | null;
 }
 
 export const capHeight = (min: number) => Math.max(44, Math.round(min * 0.85));
@@ -183,16 +181,14 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
   };
 }
 
-/** The ordered list for the Spine timeline: items, idle gaps, the drop marker and the now line. */
+/** The ordered list for the Spine timeline: items, idle gaps and the now line. */
 export function timelineRows(c: Ctx): TimelineRow[] {
   const out: TimelineRow[] = [];
   for (const r of c.rows) {
     const v = itemVM(r, c);
     if (r.gap) out.push({ type: 'gap', key: 'g' + v.id, gap: dL(r.gap) });
-    if (c.drag && c.drag.over === r.idx && c.drag.id !== v.id) out.push({ type: 'drop', key: 'drop' });
     out.push(v);
   }
-  if (c.drag && c.drag.over === c.day.items.length) out.push({ type: 'drop', key: 'drop' });
 
   if (c.isToday && c.rows.length) {
     const n = c.n;
@@ -207,6 +203,30 @@ export function timelineRows(c: Ctx): TimelineRow[] {
       else out.splice(at, 0, nr);
     }
   }
+  return out;
+}
+
+/**
+ * While a task is being dragged, how far (px) each other row slides to open a gap where it will
+ * land: rows between its old place and the new one move up or down by its height `h`.
+ */
+export function dragShifts(
+  rows: TimelineRow[],
+  drag: { id: string; over: number | null; h: number } | null,
+  count: number,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!drag || drag.over == null) return out;
+  const from = rows.findIndex((r) => r.type === 'item' && r.id === drag.id);
+  if (from < 0) return out;
+  // The gap opens in front of the item it lands before, including that item's idle-time row.
+  let to = rows.length;
+  if (drag.over < count) {
+    to = rows.findIndex((r) => r.type === 'item' && r.idx === drag.over);
+    if (to > 0 && rows[to - 1].type === 'gap') to--;
+  }
+  if (to > from) for (let i = from + 1; i < to; i++) out[rows[i].key] = -drag.h;
+  else for (let i = to; i < from; i++) out[rows[i].key] = drag.h;
   return out;
 }
 

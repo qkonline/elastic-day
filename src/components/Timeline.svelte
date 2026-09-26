@@ -1,6 +1,6 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { timelineRows } from '../lib/rows';
+  import { dragShifts, timelineRows } from '../lib/rows';
   import ItemRow from './ItemRow.svelte';
   import NowLine from './NowLine.svelte';
 
@@ -17,31 +17,32 @@
       isToday: P.isToday,
       showTimes,
       clock24: P.settings.clock24,
-      drag: P.drag,
     }),
   );
+  // While a task is dragged, the rows between its old and new place slide to open a gap.
+  const shifts = $derived(dragShifts(rows, P.drag, P.day.items.length));
+  const moved = (key: string) => (shifts[key] ? `translateY(${shifts[key]}px)` : undefined);
 </script>
 
-<ol class="timeline" bind:this={listEl} aria-label="Plan for the day">
+<ol class="timeline" class:sorting={!!P.drag} bind:this={listEl} aria-label="Plan for the day">
   {#each rows as r (r.key)}
     {#if r.type === 'item'}
-      <ItemRow v={r} list={() => listEl} />
+      <ItemRow v={r} list={() => listEl} shift={shifts[r.key] ?? 0} />
     {:else if r.type === 'gap'}
-      <li class="gap">
+      <li class="gap" style:transform={moved(r.key)}>
         <span></span>
         <span class="gline"><span></span></span>
         <span class="gtext"><span>{r.gap}</span> unaccounted for</span>
       </li>
-    {:else if r.type === 'drop'}
-      <li class="drop" aria-hidden="true"></li>
     {:else}
-      <li class="now" aria-label="Now"><NowLine /></li>
+      <li class="now" aria-label="Now" style:transform={moved(r.key)}><NowLine /></li>
     {/if}
   {/each}
 </ol>
 
 <style>
   .timeline {
+    position: relative;
     list-style: none;
     margin: 0;
     padding: 10px var(--px) 12px;
@@ -71,11 +72,9 @@
   .gtext span {
     color: var(--orT);
   }
-  .drop {
-    height: 3px;
-    border-radius: 3px;
-    background: #fb923c;
-    margin: 0 0 0 var(--tc);
+  /* Rows glide out of the way while a task is dragged (the lifted row follows the finger). */
+  .sorting > :global(li:not(.lifted)) {
+    transition: transform 180ms ease;
   }
   .now {
     display: grid;

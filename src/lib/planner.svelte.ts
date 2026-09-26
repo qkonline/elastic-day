@@ -29,7 +29,12 @@ export interface Resched {
 }
 export interface Drag {
   id: string;
+  /** Index the task would be dropped before (null until the finger has moved). */
   over: number | null;
+  /** How far the lifted task has moved from its place (px). */
+  dy: number;
+  /** Height of the lifted task's row: the gap the other rows open for it (px). */
+  h: number;
 }
 
 export const CONFIRM_MS = 5000;
@@ -683,8 +688,8 @@ export class Planner {
 
   // ---------- drag ----------
 
-  dragOver(over: number): void {
-    if (this.drag && this.drag.over !== over) this.drag = { ...this.drag, over };
+  dragMove(dy: number, over: number): void {
+    if (this.drag && (this.drag.dy !== dy || this.drag.over !== over)) this.drag = { ...this.drag, dy, over };
   }
 
   commitDrag(): void {
