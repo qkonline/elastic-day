@@ -1,15 +1,11 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { isPartial, worked } from '../lib/schedule';
+  import { dayStats } from '../lib/schedule';
   import { dL, fNZ } from '../lib/time';
 
   // "End my day": what got done, and what to do with the rest.
   const items = $derived(P.day.items);
-  const tasks = $derived(items.filter((i) => i.kind !== 'check' && i.kind !== 'buffer' && i.status !== 'skipped'));
-  const tasksDone = $derived(tasks.filter((i) => i.status === 'done' || isPartial(i)).length);
-  const logged = $derived(items.reduce((sum, i) => sum + worked(i, P.n), 0));
-  const checks = $derived(items.filter((i) => i.kind === 'check' && i.status !== 'skipped'));
-  const checksDone = $derived(checks.filter((i) => i.status === 'done').length);
+  const st = $derived(dayStats(P.day, P.n));
   // One-off things not done yet. Repeating ones come back tomorrow by themselves.
   const left = $derived(items.filter((i) => i.status === 'todo' && i.kind !== 'buffer' && i.repeat === 'Once'));
   const started = $derived(P.day.dayStarted);
@@ -23,10 +19,10 @@
 </div>
 
 <div class="stats">
-  <div class="stat"><span class="num">{tasksDone}/{tasks.length}</span><span class="what">tasks done</span></div>
-  <div class="stat"><span class="num">{dL(logged)}</span><span class="what">logged</span></div>
-  {#if checks.length}
-    <div class="stat"><span class="num">{checksDone}/{checks.length}</span><span class="what">checks</span></div>
+  <div class="stat"><span class="num">{st.tasksDone}/{st.tasks}</span><span class="what">tasks done</span></div>
+  <div class="stat"><span class="num">{dL(st.logged)}</span><span class="what">logged</span></div>
+  {#if st.checks}
+    <div class="stat"><span class="num">{st.checksDone}/{st.checks}</span><span class="what">checks</span></div>
   {/if}
 </div>
 

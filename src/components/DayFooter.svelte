@@ -7,7 +7,23 @@
   const tasks = $derived(`${count} task${count === 1 ? '' : 's'}`);
   const dateLabel = $derived(shortDate(keyDate(P.viewKey)));
   const armed = $derived(P.armed('clear', 'day'));
+  const started = $derived(P.isToday && P.day.dayStarted != null);
 </script>
+
+{#if started}
+  <div class="end-row">
+    {#if P.day.dayEnded == null}
+      <!-- The evening's colours, where Start my day has the day's. -->
+      <button class="end-day" onclick={() => P.openSheet({ type: 'wrapup' })}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"
+          ><path d="M10.6 1.6A6.6 6.6 0 1 0 14.4 11 5.4 5.4 0 0 1 10.6 1.6Z" /></svg
+        >End my day
+      </button>
+    {:else}
+      <button class="reopen" onclick={() => P.reopenDay()}>Reopen day</button>
+    {/if}
+  </div>
+{/if}
 
 {#if count}
   <div class="clear">
@@ -33,6 +49,45 @@
 {/if}
 
 <style>
+  .end-row {
+    display: flex;
+    justify-content: center;
+    padding: 28px var(--px) 8px;
+  }
+  .end-day {
+    height: 44px;
+    padding: 0 22px;
+    border-radius: 999px;
+    border: 2px solid #ffffff;
+    background: linear-gradient(90deg, #fdba74, #fb7185, #e879f9, #a78bfa, #60a5fa);
+    color: #16181d;
+    font: 400 15px/1 var(--font);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 8px 22px -10px rgba(15, 23, 42, 0.45);
+    transition: filter 200ms;
+  }
+  .end-day svg {
+    fill: currentColor;
+  }
+  @media (hover: hover) {
+    .end-day:hover {
+      filter: saturate(1.15) brightness(1.04);
+    }
+  }
+  .reopen {
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--raised);
+    color: var(--text);
+    font: 400 15px/1 var(--font);
+    cursor: pointer;
+  }
   .clear {
     margin: 20px var(--px) 24px;
     padding: 18px 0 0;

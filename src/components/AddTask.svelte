@@ -6,6 +6,7 @@
   import type { Hue, Kind } from '../lib/types';
   import { reducedMotion } from '../lib/ui.svelte';
   import Fields, { KINDS } from './Fields.svelte';
+  import SwitchRow from './SwitchRow.svelte';
 
   // The name, type and colour are always shown. Timing and repeating are optional, each behind
   // a switch that opens its choices in place. Without timing, a task is a check: ticked off on
@@ -92,38 +93,26 @@
   {/if}
 
   <div class="props">
-    <div class="prop">
-      <button class="toggle" role="switch" aria-checked={timed} onclick={() => setTimed(!timed)}>
-        <span class="tt">
-          <span class="tn">Timed</span>
-          <span class="ts">{timed ? 'Start, pause and finish it with a timer' : 'No timer, just a box to tick'}</span>
-        </span>
-        <span class="switch" class:on={timed}><span></span></span>
-      </button>
-      {#if timed}
-        <div class="more" transition:slide={unfold()}>
-          <Fields field="duration" {min} showLabel={false} onMin={(m) => (min = m)} />
-        </div>
-      {/if}
-    </div>
-    <div class="prop">
-      <button class="toggle" role="switch" aria-checked={repeats} onclick={() => (repeats = !repeats)}>
-        <span class="tt">
-          <span class="tn">Repeats</span>
-          <span class="ts">{repeats ? 'Also added to the matching days after this one' : 'Just this once'}</span>
-        </span>
-        <span class="switch" class:on={repeats}><span></span></span>
-      </button>
-      {#if repeats}
-        <div class="more" transition:slide={unfold()}>
-          <div class="row">
-            {#each repeatOpts as r (r)}
-              <button class="chip" aria-pressed={repeat === r} onclick={() => (repeat = r)}>{r}</button>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    </div>
+    <SwitchRow
+      label="Timed"
+      note={timed ? 'Start, pause and finish it with a timer' : 'No timer, just a box to tick'}
+      on={timed}
+      ontoggle={() => setTimed(!timed)}
+    >
+      <Fields field="duration" {min} showLabel={false} onMin={(m) => (min = m)} />
+    </SwitchRow>
+    <SwitchRow
+      label="Repeats"
+      note={repeats ? 'Also added to the matching days after this one' : 'Just this once'}
+      on={repeats}
+      ontoggle={() => (repeats = !repeats)}
+    >
+      <div class="row">
+        {#each repeatOpts as r (r)}
+          <button class="chip" aria-pressed={repeat === r} onclick={() => (repeat = r)}>{r}</button>
+        {/each}
+      </div>
+    </SwitchRow>
   </div>
 </div>
 <div class="foot">
@@ -197,51 +186,12 @@
     font: 400 14px/1 var(--font);
     color: var(--muted);
   }
-  /* Optional properties: one card, a row per switch, choices unfolding under their row. */
+  /* Optional properties: one card, a row per switch (SwitchRow). */
   .props {
     border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--raised);
     overflow: hidden;
-  }
-  .prop + .prop {
-    border-top: 1px solid var(--border);
-  }
-  .toggle {
-    width: 100%;
-    min-height: 64px;
-    padding: 12px 14px 12px 16px;
-    border: none;
-    background: transparent;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    text-align: left;
-    cursor: pointer;
-  }
-  .toggle:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: -4px;
-    border-radius: 12px;
-  }
-  .tt {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .tn {
-    font: 400 15px/1.2 var(--font);
-  }
-  .ts {
-    font: 400 13px/1.35 var(--font);
-    color: var(--muted);
-    text-wrap: pretty;
-  }
-  .more {
-    padding: 0 16px 16px;
   }
   .time {
     height: 40px;

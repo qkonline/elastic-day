@@ -9,7 +9,7 @@ import { hasNotifications, needsInstallForNotifications } from './platform';
 import { cancelPush, preparePush, schedulePush, unsubscribePush } from './push';
 import { materialize, seriesFromItem, syncSeriesInto } from './repeat';
 import { sampleItems } from './sample';
-import { isActive, schedule, worked } from './schedule';
+import { dayStats, type DayStats, isActive, schedule, worked } from './schedule';
 import {
   addDays,
   clockToDay,
@@ -26,6 +26,10 @@ import {
 import { activeDayKey } from './today';
 import type { Day, Hue, Item, Kind, Series, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
+
+/** The full-screen moment after Start my day or End my day. */
+export type Celebration =
+  { kind: 'start'; at: number; first: string | null } | { kind: 'end'; stats: DayStats; moved: number };
 
 export type Sheet =
   | { type: 'task'; id: string }
@@ -114,6 +118,7 @@ export class Planner {
   sch = $derived(schedule(this.planDay, this.n));
   /** First visit: show the welcome until it's been completed or skipped. */
   showWelcome = $derived(this.ready && !this.settings.onboarded);
+  celebrate = $state<Celebration | null>(null);
   active = $derived(this.day.items.find(isActive) ?? null);
   /** A timer running or paused on a day other than the one on screen (e.g. left on last night). */
   elsewhere = $derived.by(() => {
@@ -468,6 +473,7 @@ export class Planner {
     const s = this.settings;
     const flex = s.flexStart || n >= this.day.wrap ? { dayStart: n, wrap: n + s.dayLength } : {};
     this.update((d) => ({ ...A.startDay(d, n), ...flex }), first ? `${first.title} started` : 'Day started');
+    this.celebrate = { kind: 'start', at: n, first: first?.title ?? null };
     if (first) this.offerNotifications();
   }
 
@@ -489,6 +495,7 @@ export class Planner {
     }
     this.sheet = null;
     this.put(d);
+    this.celebrate = { kind: 'end', stats: dayStats(d, n), moved: copies.length };
     if (copies.length) {
       const next = await this.ensureDay(addDays(key, 1));
       this.put({ ...next, items: [...next.items, ...copies] });

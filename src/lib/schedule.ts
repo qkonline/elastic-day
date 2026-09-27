@@ -107,3 +107,26 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
 
 /** A todo item whose planned end has passed (today only). Checks are never missed. */
 export const isMissed = (r: Row, n: number) => r.it.kind !== 'check' && r.it.status === 'todo' && r.end <= n + 1e-6;
+
+export interface DayStats {
+  tasks: number;
+  tasksDone: number;
+  /** Minutes worked. */
+  logged: number;
+  checks: number;
+  checksDone: number;
+}
+
+/** What a day adds up to. Skipped items and ones moved to another day don't count. */
+export function dayStats(day: Day, n: number): DayStats {
+  const counts = (i: Item) => i.status !== 'skipped' && !(i.status === 'postponed' && !isPartial(i));
+  const tasks = day.items.filter((i) => i.kind !== 'check' && i.kind !== 'buffer' && counts(i));
+  const checks = day.items.filter((i) => i.kind === 'check' && counts(i));
+  return {
+    tasks: tasks.length,
+    tasksDone: tasks.filter((i) => i.status === 'done' || isPartial(i)).length,
+    logged: day.items.reduce((sum, i) => sum + worked(i, n), 0),
+    checks: checks.length,
+    checksDone: checks.filter((i) => i.status === 'done').length,
+  };
+}

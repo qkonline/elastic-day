@@ -21,7 +21,6 @@
         ? `${weekdayLong(vDate)}, in ${diff} days`
         : `${weekdayLong(vDate)}, ${-diff} days ago`,
   );
-  const started = $derived(P.day.dayStarted != null);
 </script>
 
 <header class="header">
@@ -29,11 +28,7 @@
     <div class="small">{small}</div>
     <h1 class="title">{dayName}</h1>
   </div>
-  {#if P.isToday && started && P.day.dayEnded == null}
-    <button class="today" onclick={() => P.openSheet({ type: 'wrapup' })}>End my day</button>
-  {:else if P.isToday && started}
-    <button class="today" onclick={() => P.reopenDay()}>Reopen day</button>
-  {:else if !P.isToday}
+  {#if !P.isToday}
     <!-- The dot is the timeline's "now" marker: this takes you back to now. -->
     <button class="today" onclick={() => P.backToToday()}><span class="now"></span>Back to today</button>
   {/if}

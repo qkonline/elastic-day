@@ -46,11 +46,11 @@
   <button
     class="status"
     in:slide={unfold()}
-    aria-label={`Started at ${fNZ(d.dayStarted, c24)}${summary ? ', ' + summary : ''}. Change day hours`}
+    aria-label={`Day started at ${fNZ(d.dayStarted, c24)}${summary ? ', ' + summary : ''}. Change day hours`}
     onclick={() => P.openSheet({ type: 'hours' })}
   >
     <span class="line">
-      <span>Started at <span class="t">{fNZ(d.dayStarted, c24)}</span></span>
+      <span>Day started at <span class="t">{fNZ(d.dayStarted, c24)}</span></span>
       {#if d.dayEnded != null}
         <span>Ended at <span class="t">{fNZ(d.dayEnded, c24)}</span></span>
       {:else if live && open}

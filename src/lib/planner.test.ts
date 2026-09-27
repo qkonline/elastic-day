@@ -201,6 +201,7 @@ describe('Planner', () => {
     expect(q.n).toBe(1500);
 
     await q.endDay(true);
+    expect(q.celebrate).toMatchObject({ kind: 'end', moved: 2, stats: { tasks: 1, tasksDone: 1, checks: 0 } });
     await vi.waitFor(() => expect(q.viewKey).toBe(TOMORROW));
     expect(q.today).toBe(TOMORROW);
     expect(q.day.items.map((i) => i.title)).toEqual(['Emails', 'Vitamins']);
@@ -212,6 +213,13 @@ describe('Planner', () => {
       ['Emails', 'postponed'],
       ['Vitamins', 'postponed'],
     ]);
+  });
+
+  it('Start my day is celebrated with when it started and what comes first', async () => {
+    const p = await boot();
+    add(p, 'Plan');
+    p.startDay();
+    expect(p.celebrate).toEqual({ kind: 'start', at: 600, first: 'Plan' });
   });
 
   it('with a flexible start, counts the day from when it starts', async () => {

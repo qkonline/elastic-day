@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing';
   import { MediaQuery } from 'svelte/reactivity';
   import AddTask from './components/AddTask.svelte';
+  import Celebration from './components/Celebration.svelte';
   import Checklist from './components/Checklist.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
@@ -89,7 +90,7 @@
   });
 
   // Anything covering the page keeps keyboard and screen readers out of it.
-  const covered = $derived(!!P.sheet || P.showWelcome);
+  const covered = $derived(!!P.sheet || P.showWelcome || !!P.celebrate);
   $effect(() => {
     document.body.classList.toggle('locked', covered);
   });
@@ -183,6 +184,12 @@
 
   {#if P.showWelcome}
     <Welcome />
+  {/if}
+
+  {#if P.celebrate}
+    {#key P.celebrate}
+      <Celebration c={P.celebrate} />
+    {/key}
   {/if}
 {/if}
 

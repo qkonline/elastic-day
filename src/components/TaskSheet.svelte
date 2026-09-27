@@ -4,9 +4,11 @@
   import { itemVM, RUN } from '../lib/rows';
   import { clockToDay, dL, hhmm, hm, keyDate, weekdayLong } from '../lib/time';
   import DisarmBar from './DisarmBar.svelte';
+  import type { Kind } from '../lib/types';
   import Fields, { KINDS } from './Fields.svelte';
   import PostponeChooser from './PostponeChooser.svelte';
   import StepBox from './StepBox.svelte';
+  import SwitchRow from './SwitchRow.svelte';
   let { id: idProp }: { id: string } = $props();
   // The sheet is keyed by task, so the id never changes while it's open. Keep a copy: blur
   // handlers still run while the sheet is being removed, after the sheet state is cleared.
@@ -29,11 +31,12 @@
   const postponeArmed = $derived(P.armed('postpone', id));
   const delArmed = $derived(P.armed('delete', id));
 
-  const repeats = $derived.by(() => {
-    const list = ['Once', 'Every day', 'Weekdays', 'Every ' + weekdayLong(keyDate(P.viewKey))];
-    if (it && !list.includes(it.repeat)) list.push(it.repeat);
+  const repeatOpts = $derived.by(() => {
+    const list = ['Every day', 'Weekdays', 'Every ' + weekdayLong(keyDate(P.viewKey))];
+    if (it && it.repeat !== 'Once' && !list.includes(it.repeat)) list.push(it.repeat);
     return list;
   });
+  const repeating = $derived(!!it && it.repeat !== 'Once');
 
   // The task can disappear underneath the sheet (cleared day, another tab): close it then.
   $effect(() => {
@@ -48,6 +51,22 @@
     if (m === 0) P.edit(id, { min: 0, kind: 'check', fixedAt: null, status: it.status === 'done' ? 'done' : 'todo' });
     else if (isCheck) P.edit(id, { min: m, kind: 'task', status: 'todo', endedAt: null });
     else P.edit(id, { min: m });
+  }
+
+  // Switching Timed or Repeats back on brings back what it was set to.
+  let lastMin = $state(30);
+  let lastRepeat = $state('Every day');
+  $effect(() => {
+    if (it && it.min > 0) lastMin = it.min;
+    if (it && it.repeat !== 'Once') lastRepeat = it.repeat;
+  });
+  // A check is a plain task without a timer; picking Buffer or Fixed time gives it one again.
+  function pickKind(k: Kind) {
+    if (isCheck) {
+      if (k === 'task') return;
+      setDuration(lastMin);
+    }
+    P.setKind(id, k);
   }
 
   let newSub = $state('');
@@ -135,46 +154,67 @@
     {/if}
 
     <div class="card">
-      <Fields field="duration" min={it.min} allowNone onMin={setDuration} />
-      {#if !isCheck}
-        <div class="group">
-          <span class="label">Type</span>
-          <div class="row">
-            {#each KINDS as [k, l] (k)}
-              <button class="chip" aria-pressed={it.kind === k} onclick={() => P.setKind(id, k)}>{l}</button>
-            {/each}
-            {#if it.kind === 'fixed'}
-              <input
-                class="time"
-                type="time"
-                aria-label="Fixed time"
-                value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
-                onchange={(e) =>
-                  e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
-              />
-            {/if}
-          </div>
-        </div>
-      {/if}
       <div class="group">
-        <span class="label">Repeats</span>
+        <span class="label">Type</span>
         <div class="row">
-          {#each repeats as r (r)}
-            <button class="chip" aria-pressed={it.repeat === r} onclick={() => P.setRepeat(id, r)}>{r}</button>
+          {#each KINDS as [k, l] (k)}
+            <button class="chip" aria-pressed={(isCheck ? 'task' : it.kind) === k} onclick={() => pickKind(k)}
+              >{l}</button
+            >
           {/each}
         </div>
-        {#if it.repeat !== 'Once'}
-          <span class="hint">Changes here also update later days you have not started yet.</span>
+        {#if it.kind === 'fixed'}
+          <label class="at">
+            <span>At</span>
+            <input
+              class="time"
+              type="time"
+              aria-label="Fixed time"
+              value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
+              onchange={(e) =>
+                e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
+            />
+          </label>
         {/if}
       </div>
-      <Fields field="colour" hue={it.hue} onHue={(h) => P.edit(id, { hue: h })} />
+      {#if it.kind !== 'buffer'}
+        <Fields field="colour" hue={it.hue} onHue={(h) => P.edit(id, { hue: h })} />
+      {/if}
       {#if !isCheck}
         <div class="pos">
-          <span class="label">Position · {v.idx + 1} of {P.day.items.length}</span>
+          <span class="label">Position: {v.idx + 1} of {P.day.items.length}</span>
           <button class="pb" onclick={() => P.move(id, -1)}>↑ Earlier</button>
           <button class="pb" onclick={() => P.move(id, 1)}>↓ Later</button>
         </div>
       {/if}
+    </div>
+
+    <div class="props">
+      <SwitchRow
+        label="Timed"
+        note={v.active
+          ? 'Stop the timer to change this'
+          : isCheck
+            ? 'No timer, just a box to tick'
+            : 'Start, pause and finish it with a timer'}
+        on={!isCheck}
+        disabled={v.active}
+        ontoggle={() => setDuration(isCheck ? lastMin : 0)}
+      >
+        <Fields field="duration" min={it.min} showLabel={false} onMin={setDuration} />
+      </SwitchRow>
+      <SwitchRow
+        label="Repeats"
+        note={repeating ? "Changes also update later days you haven't started yet" : 'Just this once'}
+        on={repeating}
+        ontoggle={() => P.setRepeat(id, repeating ? 'Once' : lastRepeat)}
+      >
+        <div class="row">
+          {#each repeatOpts as r (r)}
+            <button class="chip" aria-pressed={it.repeat === r} onclick={() => P.setRepeat(id, r)}>{r}</button>
+          {/each}
+        </div>
+      </SwitchRow>
     </div>
 
     <div class="card tight">
@@ -221,34 +261,38 @@
 
   <div class="foot">
     {#if delArmed}
-      <span class="del-q">
-        {it.repeat !== 'Once' ? 'Delete from' : 'Delete?'}
-        <button class="btn-yes" onclick={() => P.remove(id)} {@attach (el) => el.focus()}
-          >{it.repeat !== 'Once' ? 'This day' : 'Delete'}</button
-        >
+      <div class="confirm" role="group" aria-label="Confirm delete">
+        <span class="q">{repeating ? 'Delete it from this day? Other days keep it.' : 'Delete this task?'}</span>
+        <button class="btn-yes" onclick={() => P.remove(id)} {@attach (el) => el.focus()}>Delete</button>
         <button class="btn-no" onclick={() => P.disarm()}>Cancel</button>
         <DisarmBar />
-      </span>
+      </div>
     {:else}
-      <button class="fb red" onclick={() => P.arm('delete', id)}>Delete</button>
-      {#if it.repeat !== 'Once'}
-        <button class="fb muted" onclick={() => P.stopRepeating(id)}>Stop repeating</button>
-      {/if}
+      <!-- Deleting sits apart from the task's own actions, as an icon. -->
+      <button class="trash" aria-label="Delete {it.title}" onclick={() => P.arm('delete', id)}>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+          ><path
+            d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.2A1.5 1.5 0 0 0 8.5 20.5h7a1.5 1.5 0 0 0 1.5-1.3L18 7M10 11v5.5M14 11v5.5"
+          /></svg
+        >
+      </button>
       {#if isCheck}
-        <button class="fb" onclick={() => P.toggleCheck(id)}>{v.s === 'done' ? 'Untick' : 'Tick off'}</button>
-      {:else if v.s === 'todo' || v.s === 'skipped'}
-        <button class="fb" onclick={() => (v.s === 'skipped' ? P.restore(id) : P.skip(id))}>
-          {v.s === 'skipped' ? 'Restore' : 'Skip today'}
-        </button>
+        <button class="ctl" class:done={v.s !== 'done'} onclick={() => P.toggleCheck(id)}
+          ><span class="g">✓</span>{v.s === 'done' ? 'Untick' : 'Tick off'}</button
+        >
+      {:else if v.s === 'todo'}
+        <button class="ctl" onclick={() => P.skip(id)}>{P.isToday ? 'Skip today' : 'Skip this day'}</button>
+        {#if P.isToday && !postponeArmed}
+          <button class="ctl post" onclick={() => P.arm('postpone', id)}><span class="g">↷</span>Postpone</button>
+        {/if}
+      {:else if v.s === 'skipped'}
+        <button class="ctl" onclick={() => P.restore(id)}>Restore</button>
+      {:else if v.s === 'done'}
+        <button class="ctl" onclick={() => P.reopen(id)}>Reopen</button>
+      {:else if v.s === 'postponed' && it.movedKey}
+        <button class="ctl" onclick={() => P.restore(id)}>Undo move</button>
       {/if}
     {/if}
-    {#if P.isToday && v.s === 'todo' && !postponeArmed && !isCheck}
-      <button class="fb pp" onclick={() => P.arm('postpone', id)}>Postpone</button>
-    {/if}
-    {#if v.s === 'done' && !isCheck}
-      <button class="fb" onclick={() => P.reopen(id)}>Reopen</button>
-    {/if}
-    <button class="close" onclick={() => P.closeSheet()}>Done</button>
   </div>
 {/if}
 
@@ -384,6 +428,20 @@
     flex-direction: column;
     gap: 8px;
   }
+  /* Timed and Repeats: one card, a row per switch (SwitchRow). */
+  .props {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--raised);
+    overflow: hidden;
+  }
+  .at {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 400 14px/1 var(--font);
+    color: var(--muted);
+  }
   .row {
     display: flex;
     flex-wrap: wrap;
@@ -398,10 +456,6 @@
     background: var(--sunk);
     color: var(--text);
     font: 400 14px/1 var(--font);
-  }
-  .hint {
-    font: 400 12px/1.4 var(--font);
-    color: var(--muted);
   }
   .pos {
     display: flex;
@@ -476,55 +530,59 @@
     color: var(--text);
     padding: 0;
   }
+  /* Delete, then the task's own actions (at most two), side by side with room to breathe. */
   .foot {
     flex: none;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    padding: 12px 16px calc(28px + env(safe-area-inset-bottom));
+    gap: 10px;
+    padding: 14px 16px calc(28px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
     background: var(--bg);
   }
-  .fb {
-    height: 44px;
-    padding: 0 10px;
-    border: none;
+  .foot .ctl {
+    height: 50px;
+    font-size: 15px;
+  }
+  .ctl.post {
     background: transparent;
-    color: var(--text);
-    font: 400 14px/1 var(--font);
-    cursor: pointer;
-  }
-  .fb.red {
-    color: var(--redT);
-  }
-  .fb.muted {
-    color: var(--muted);
-  }
-  .fb.pp {
-    padding: 0 14px;
     border: 1.5px solid #fb923c;
-    border-radius: 12px;
     color: var(--orT);
   }
-  .del-q {
+  .confirm {
+    flex: 1;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    font: 400 14px/1 var(--font);
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(248, 113, 113, 0.1);
+    border: 1px solid rgba(248, 113, 113, 0.4);
     position: relative;
     overflow: hidden;
-    padding-bottom: 6px;
   }
-  .close {
-    margin-left: auto;
-    height: 44px;
-    padding: 0 22px;
+  .q {
+    flex: 1 1 160px;
+    font: 400 14px/1.4 var(--font);
+  }
+  .trash {
+    width: 50px;
+    height: 50px;
+    flex: none;
     border-radius: 12px;
     border: none;
-    background: var(--text);
-    color: var(--bg);
-    font: 400 15px/1 var(--font);
+    background: rgba(248, 113, 113, 0.12);
+    color: var(--redT);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+  }
+  .trash svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 </style>

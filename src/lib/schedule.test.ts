@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newItem } from './actions';
-import { isMissed, schedule, worked } from './schedule';
+import { dayStats, isMissed, schedule, worked } from './schedule';
 import { clockToDay, minutesInto } from './time';
 import type { Day, Item } from './types';
 
@@ -139,5 +139,20 @@ describe('an ended day', () => {
     const d = day([t('a', 600), t('b', 60)], { dayStarted: 540, dayEnded: 700 });
     expect(schedule(d, 700).rows.some((r) => r.pastEnd || r.runsInto)).toBe(false);
     expect(schedule({ ...d, dayEnded: null }, 700).rows.some((r) => r.pastEnd)).toBe(true);
+  });
+});
+
+describe('dayStats', () => {
+  it('counts tasks done, time logged and checks, leaving out skipped and moved items', () => {
+    const d = day([
+      t('a', 30, { status: 'done', startedAt: 540, endedAt: 580 }),
+      t('b', 30, { status: 'running', startedAt: 590 }),
+      t('c', 30, { status: 'skipped' }),
+      t('d', 30, { status: 'postponed', movedKey: '2026-09-26' }),
+      t('buf', 15, { kind: 'buffer' }),
+      t('mail', 0, { kind: 'check', status: 'done', endedAt: 600 }),
+      t('gym', 0, { kind: 'check' }),
+    ]);
+    expect(dayStats(d, 600)).toEqual({ tasks: 2, tasksDone: 1, logged: 50, checks: 2, checksDone: 1 });
   });
 });
