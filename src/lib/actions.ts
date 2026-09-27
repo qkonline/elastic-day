@@ -1,7 +1,7 @@
 // Pure transformations of a Day. Each returns a new Day and never mutates its input.
 // `n` is "now" in minutes since the day's local midnight.
 
-import { isActive, schedule } from './schedule';
+import { isActive, isMissed, schedule } from './schedule';
 import type { Day, Item, Kind } from './types';
 
 export function uid(): string {
@@ -56,20 +56,17 @@ export function patchItem(day: Day, id: string, patch: Partial<Item>): Day {
 }
 
 /**
- * Put the started item at the current point in the plan: straight after the last item that has
- * already happened (done, skipped, moved, or just finished), in front of everything still to do.
- * Whatever hasn't started is then planned after it, instead of overlapping it or being left
- * behind in slots that have already gone by.
+ * Put the started item at the current point in the plan: in front of the first task still to
+ * come, so that everything upcoming is planned after it instead of overlapping it. Tasks already
+ * missed stay where they are, still missed: only the task being started moves.
  */
-function toCurrentPoint(items: Item[], id: string): Item[] {
+function toCurrentPoint(items: Item[], id: string, missed: Set<string>): Item[] {
   const self = items.find((x) => x.id === id);
   if (!self) return items;
   const rest = items.filter((x) => x.id !== id);
-  let at = 0;
-  rest.forEach((x, k) => {
-    if (x.kind !== 'check' && x.status !== 'todo') at = k + 1; // checks live in the checklist
-  });
-  rest.splice(at, 0, self);
+  // Checks live in the checklist, so they don't count.
+  const at = rest.findIndex((x) => x.kind !== 'check' && x.status === 'todo' && !missed.has(x.id));
+  rest.splice(at < 0 ? rest.length : at, 0, self);
   return rest;
 }
 
@@ -80,6 +77,11 @@ function toCurrentPoint(items: Item[], id: string): Item[] {
 export function startItem(day: Day, id: string, n: number): Day {
   const target = find(day, id);
   if (!target || target.kind === 'buffer' || target.kind === 'check') return day;
+  const missed = new Set(
+    schedule(day, n)
+      .rows.filter((r) => r.it.id !== id && isMissed(r, n))
+      .map((r) => r.it.id),
+  );
   const items = day.items.map((i): Item => {
     if (i.id === id)
       return { ...i, status: 'running', startedAt: n, endedAt: null, pausedAt: null, pausedFor: 0, marked: false };
@@ -89,10 +91,13 @@ export function startItem(day: Day, id: string, n: number): Day {
     return i;
   });
   // Starting something on a day already ended reopens it.
-  return { ...day, dayStarted: day.dayStarted ?? n, dayEnded: null, items: toCurrentPoint(items, id) };
+  return { ...day, dayStarted: day.dayStarted ?? n, dayEnded: null, items: toCurrentPoint(items, id, missed) };
 }
 
-/** "Start my day": stamp the day and start the first pending task (or fixed item). */
+/**
+ * "Start my day": stamp the day and start the first pending task (or fixed item). The plan now
+ * runs from this moment, so nothing still to do counts as missed.
+ */
 export function startDay(day: Day, n: number): Day {
   const timed = (i: Item) => i.status === 'todo' && i.kind !== 'buffer' && i.kind !== 'check';
   const first = day.items.find((i) => timed(i) && i.kind === 'task') ?? day.items.find(timed);

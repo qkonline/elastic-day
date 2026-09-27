@@ -46,6 +46,13 @@ export function pausedTotal(it: Item, n: number): number {
 export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
   const started = day.dayStarted != null;
   let cur = started ? day.dayStarted! : day.dayStart;
+  // Tasks left in front of everything that has happened were missed before the day started
+  // (and kept as missed when another task was started): they stay where the plan had them.
+  const first = day.items.findIndex((i) => i.status === 'done' || isActive(i) || isPartial(i));
+  if (started && first > 0 && day.items.slice(0, first).some((i) => i.status === 'todo' && i.kind !== 'check'))
+    cur = Math.min(day.dayStart, cur);
+  // Idle time only counts once the day has started.
+  const idle = (start: number) => start - Math.max(cur, started ? day.dayStarted! : cur);
 
   const rows: Row[] = day.items.map((it, idx) => {
     let start: number,
@@ -58,16 +65,16 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
     } else if (s === 'done' || isPartial(it)) {
       start = it.startedAt!;
       end = it.endedAt ?? start;
-      gap = start - cur;
+      gap = idle(start);
       cur = Math.max(cur, end);
     } else if (s === 'running') {
       start = it.startedAt!;
-      gap = start - cur;
+      gap = idle(start);
       end = Math.max(n, start + it.min + it.pausedFor);
       cur = end;
     } else if (s === 'paused') {
       start = it.startedAt!;
-      gap = start - cur;
+      gap = idle(start);
       end = n + Math.max(0, it.min - (it.pausedAt! - start - it.pausedFor));
       cur = end;
     } else if (it.kind === 'fixed') {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as A from './actions';
-import { schedule } from './schedule';
+import { isMissed, schedule } from './schedule';
 import type { Day, Item } from './types';
 
 const t = (title: string, min: number, o: Partial<Item> = {}) => A.newItem({ title, min, id: title, ...o });
@@ -88,8 +88,9 @@ describe('postpone', () => {
 describe('starting late', () => {
   const plan = (d: Day, n: number) => schedule(d, n).rows.map((r) => `${r.it.id} ${r.start}-${r.end}`);
 
-  it('starting a missed task at noon moves everything still to do after it', () => {
-    // Day started at 9. "work" was planned 10–11 and "call" 11–11:30; both missed by noon.
+  it('starting a missed task at noon moves only that task; the other missed ones stay missed', () => {
+    // Day started at 9. "work" was planned 10–11, "call" 11–11:30 and "report" 11:30–12:15:
+    // by noon the first two are missed.
     const d0 = day(
       [t('mail', 60, { status: 'done', startedAt: 540, endedAt: 600 }), t('work', 60), t('call', 30), t('report', 45)],
       { dayStarted: 540 },
@@ -97,12 +98,30 @@ describe('starting late', () => {
     const res = A.reschedNow(d0, 'work');
     expect(res.start).toBe(true);
     const d1 = A.startItem(res.day, 'work', 720);
-    expect(plan(d1, 720)).toEqual(['mail 540-600', 'work 720-780', 'call 780-810', 'report 810-855']);
+    expect(plan(d1, 720)).toEqual(['mail 540-600', 'call 600-630', 'work 720-780', 'report 780-825']);
+    const rows = schedule(d1, 720).rows;
+    expect(rows.filter((r) => isMissed(r, 720)).map((r) => r.it.id)).toEqual(['call']);
+    expect(rows.find((r) => r.it.id === 'work')?.gap).toBe(90); // idle from 10:30 to noon
   });
 
-  it('works the same when "Start my day" was never pressed', () => {
+  it('keeps missed tasks missed when a task starts before Start my day', () => {
+    // Planned from 10, never started; at noon "a" and "b" are missed and "c" is on now.
+    const d0 = day([t('a', 60), t('b', 60), t('c', 60), t('d', 30)], { dayStart: 600 });
+    const d1 = A.startItem(d0, 'b', 720);
+    expect(d1.dayStarted).toBe(720);
+    expect(plan(d1, 720)).toEqual(['a 600-660', 'b 720-780', 'c 780-840', 'd 840-870']);
+    expect(
+      schedule(d1, 720)
+        .rows.filter((r) => isMissed(r, 720))
+        .map((r) => r.it.id),
+    ).toEqual(['a']);
+    // Time before the day started isn't idle time.
+    expect(schedule(d1, 720).rows[1].gap).toBe(0);
+  });
+
+  it('Start my day plans everything still to do from now', () => {
     const d0 = day([t('work', 60), t('call', 30), t('report', 45)], { dayStart: 600 });
-    const d1 = A.startItem(A.reschedNow(d0, 'work').day, 'work', 720);
+    const d1 = A.startDay(d0, 720);
     expect(d1.dayStarted).toBe(720);
     expect(plan(d1, 720)).toEqual(['work 720-780', 'call 780-810', 'report 810-855']);
   });
@@ -114,15 +133,15 @@ describe('starting late', () => {
         dayStarted: 540,
       },
     );
-    const d1 = A.startItem(d0, 'c', 600);
+    const d1 = A.startItem(d0, 'c', 580); // "a" (planned 9:30–10) is under way, not missed
     expect(d1.items.map((i) => i.id)).toEqual(['mail', 'c', 'a', 'b']);
-    expect(plan(d1, 600)).toEqual(['mail 540-570', 'c 600-630', 'a 630-660', 'b 660-690']);
+    expect(plan(d1, 580)).toEqual(['mail 540-570', 'c 580-610', 'a 610-640', 'b 640-670']);
   });
 
   it('keeps fixed-time items at their time', () => {
     const d0 = day([t('a', 30), t('meet', 30, { kind: 'fixed', fixedAt: 900 }), t('b', 60)], { dayStarted: 540 });
     const d1 = A.startItem(d0, 'b', 720);
-    expect(plan(d1, 720)).toEqual(['b 720-780', 'a 780-810', 'meet 900-930']);
+    expect(plan(d1, 720)).toEqual(['a 540-570', 'b 720-780', 'meet 900-930']);
   });
 
   it('Do it next goes right after the running task without starting', () => {

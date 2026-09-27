@@ -523,7 +523,20 @@ export class Planner {
     this.alerted.delete(id);
     this.confirm = null;
     this.finishElsewhere();
-    this.update((d) => A.startItem(d, id, this.n), `${it.title} started`);
+    const n = this.n;
+    this.update((d) => {
+      if (d.dayStarted != null) return A.startItem(d, id, n);
+      // This starts the day (Reschedule → Start now before Start my day). Start from the plan
+      // as shown, so what it shows as missed stays missed; a flexible day, or one starting after
+      // its wrap-up, then runs for the usual length from now.
+      const s = this.settings;
+      const out = A.startItem(this.planDay, id, n);
+      return s.flexStart
+        ? { ...out, dayStart: n, wrap: n + s.dayLength }
+        : n >= d.wrap
+          ? { ...out, wrap: n + s.dayLength }
+          : out;
+    }, `${it.title} started`);
     this.offerNotifications();
   }
 

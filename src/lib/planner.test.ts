@@ -5,6 +5,7 @@ import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as db from './db';
 import { Planner } from './planner.svelte';
+import { isMissed } from './schedule';
 
 const TODAY = '2026-09-25'; // a Friday
 const TOMORROW = '2026-09-26';
@@ -47,7 +48,7 @@ describe('Planner', () => {
     const p = await boot();
     add(p, 'Write');
     add(p, 'Review');
-    p.startItem(byTitle(p, 'Write').id);
+    p.startDay();
     await p.flush();
 
     const q = await boot();
@@ -147,7 +148,7 @@ describe('Planner', () => {
   });
 
   it('never runs two timers when one was left going overnight', async () => {
-    vi.setSystemTime(new Date(2026, 8, 25, 23, 30));
+    vi.setSystemTime(new Date(2026, 8, 25, 16, 30));
     const p = await boot();
     add(p, 'Late');
     p.startItem(byTitle(p, 'Late').id);
@@ -223,6 +224,20 @@ describe('Planner', () => {
     p.tick();
     p.startDay();
     expect(p.day).toMatchObject({ dayStarted: 620, dayStart: 620, wrap: 1220 });
+  });
+
+  it('Reschedule → Start now moves only that task; the other missed ones stay missed', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 11, 0));
+    const p = await boot(); // planned from 9:00, never started
+    for (const t of ['A', 'B', 'C']) add(p, t); // 9:00, 9:30, 10:00: all missed by 11
+    add(p, 'D', 60); // 10:30–11:30: under way
+    const missed = () => p.sch.rows.filter((r) => isMissed(r, p.n)).map((r) => r.it.title);
+    expect(missed()).toEqual(['A', 'B', 'C']);
+
+    p.reschedNow(byTitle(p, 'B').id);
+    expect(byTitle(p, 'B').status).toBe('running');
+    expect(missed()).toEqual(['A', 'C']);
+    expect(p.sch.rows.map((r) => `${r.it.title} ${r.start}`)).toEqual(['A 540', 'C 570', 'B 660', 'D 690']);
   });
 
   it('starting after the planned wrap-up counts a full day from then', async () => {
