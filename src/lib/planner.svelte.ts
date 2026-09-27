@@ -175,7 +175,9 @@ export class Planner {
     if (typeof document === 'undefined') return;
     // After a reload a timer may already be running; the chime needs one user gesture first.
     unlockOnFirstGesture();
-    if (this.settings.notify) void preparePush();
+    // A push booked before the app was last closed isn't wanted while it's open (going into the
+    // background books a fresh one), and could ring for a timer that has since changed.
+    if (this.settings.notify) void preparePush().then((ok) => ok && !document.hidden && cancelPush());
     addEventListener('pagehide', () => void this.flush());
     document.addEventListener('visibilitychange', () => (document.hidden ? this.onHidden() : this.onVisible()));
   }
@@ -230,8 +232,9 @@ export class Planner {
           chime();
           vibrate([180, 90, 180]);
         }
-        // Same tag as the push worker's notification, so the two never show twice.
-        if (this.settings.notify) notifyHidden("Time's up", it.title, 'timer-' + it.id);
+        // With a push booked, the push brings the notification. Showing one here as well gave
+        // two on iPhones, where a page catching up after being frozen still counts as hidden.
+        if (this.settings.notify && !this.pushScheduled) notifyHidden("Time's up", it.title, 'timer-' + it.id);
       }
     }
   }

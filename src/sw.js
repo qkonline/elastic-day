@@ -65,13 +65,20 @@ self.addEventListener('push', (e) => {
   e.waitUntil(
     runningItem()
       .catch(() => null)
-      .then((it) =>
-        self.registration.showNotification("Time's up", {
+      .then(async (it) => {
+        const tag = it ? 'timer-' + it.id : 'timer';
+        // Not every browser replaces a notification with the same tag, so close any first.
+        try {
+          for (const n of await self.registration.getNotifications({ tag })) n.close();
+        } catch {
+          /* can't list them here; the tag has to do */
+        }
+        return self.registration.showNotification("Time's up", {
           body: it ? it.title : 'Your timer has run out.',
           icon: 'icon-192.png',
-          tag: it ? 'timer-' + it.id : 'timer',
-        }),
-      ),
+          tag,
+        });
+      }),
   );
 });
 
