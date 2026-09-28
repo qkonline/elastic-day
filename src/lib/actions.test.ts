@@ -24,10 +24,28 @@ describe('timer actions', () => {
     expect(d.items[0].endedAt).toBe(560);
   });
 
-  it('starting while another is paused banks the pause before finishing it', () => {
-    let d = day([t('a', 30, { status: 'paused', startedAt: 540, pausedAt: 550 }), t('b', 30)]);
+  it('starting while another is paused sets the paused one aside, not done', () => {
+    // "a" ran 9:00–9:10 and was paused; "b" starts at 9:20.
+    let d = day([t('a', 30, { status: 'paused', startedAt: 540, pausedAt: 550 }), t('b', 30)], { dayStarted: 540 });
     d = A.startItem(d, 'b', 560);
-    expect(d.items[0]).toMatchObject({ status: 'done', pausedFor: 10, pausedAt: null, endedAt: 560 });
+    expect(d.items[0]).toMatchObject({ id: 'a', status: 'postponed', startedAt: 540, endedAt: 550, pausedAt: null });
+    expect(d.items.map((i) => i.id).slice(0, 2)).toEqual(['a', 'b']);
+    // The rest comes straight after the task just started.
+    expect(d.items[2]).toMatchObject({ title: 'a', min: 20, status: 'todo', continued: true });
+    const rows = schedule(d, 560).rows;
+    expect(rows.map((r) => [r.start, r.end])).toEqual([
+      [540, 550],
+      [560, 590],
+      [590, 610],
+    ]);
+    expect(rows[1].gap).toBe(10); // the pause shows as idle time before "b"
+  });
+
+  it('a paused task that already used its time is finished instead', () => {
+    let d = day([t('a', 30, { status: 'paused', startedAt: 540, pausedAt: 575 }), t('b', 30)], { dayStarted: 540 });
+    d = A.startItem(d, 'b', 580);
+    expect(d.items[0]).toMatchObject({ status: 'done', pausedFor: 5, pausedAt: null, endedAt: 580 });
+    expect(d.items).toHaveLength(2);
   });
 
   it('never starts a buffer', () => {

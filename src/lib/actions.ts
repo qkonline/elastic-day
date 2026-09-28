@@ -82,16 +82,25 @@ export function startItem(day: Day, id: string, n: number): Day {
       .rows.filter((r) => r.it.id !== id && isMissed(r, n))
       .map((r) => r.it.id),
   );
+  let rest: Item | null = null;
   const items = day.items.map((i): Item => {
     if (i.id === id)
       return { ...i, status: 'running', startedAt: n, endedAt: null, pausedAt: null, pausedFor: 0, marked: false };
     if (i.status === 'running') return { ...i, status: 'done', endedAt: n };
-    if (i.status === 'paused')
-      return { ...i, status: 'done', pausedFor: pausedSoFar(i, n), pausedAt: null, endedAt: n };
+    if (i.status === 'paused') {
+      const w = i.pausedAt! - i.startedAt! - i.pausedFor;
+      if (w >= i.min) return { ...i, status: 'done', pausedFor: pausedSoFar(i, n), pausedAt: null, endedAt: n };
+      // Paused part-way, so not finished: the time put in stays logged (up to the pause) and
+      // the rest comes straight after the task being started.
+      rest = restOf(i, w);
+      return { ...i, status: 'postponed', endedAt: i.pausedAt, pausedAt: null, laterCopy: true };
+    }
     return i;
   });
+  const ordered = toCurrentPoint(items, id, missed);
+  if (rest) ordered.splice(ordered.findIndex((x) => x.id === id) + 1, 0, rest);
   // Starting something on a day already ended reopens it.
-  return { ...day, dayStarted: day.dayStarted ?? n, dayEnded: null, items: toCurrentPoint(items, id, missed) };
+  return { ...day, dayStarted: day.dayStarted ?? n, dayEnded: null, items: ordered };
 }
 
 /**
@@ -211,6 +220,19 @@ export function addItem(day: Day, it: Item): Day {
 /** Remaining minutes for a remainder copy (never less than 5). */
 const remainder = (it: Item, w: number) => Math.max(5, Math.round(it.min - w));
 
+/** The rest of a task set aside part-way through, as a new task badged "continued". */
+function restOf(it: Item, w: number): Item {
+  return newItem({
+    title: it.title,
+    min: remainder(it, w),
+    hue: it.hue,
+    kind: it.kind === 'fixed' ? 'task' : it.kind,
+    note: it.note,
+    subtasks: it.subtasks,
+    continued: true,
+  });
+}
+
 /**
  * Postpone → Later today.
  * Not started: move to the end of the list.
@@ -230,17 +252,7 @@ export function postponeLater(day: Day, id: string, n: number): Day {
   const pf = it.status === 'paused' ? pausedSoFar(it, n) : it.pausedFor;
   const w = n - it.startedAt! - pf;
   items[i] = { ...it, status: 'postponed', endedAt: n, pausedFor: pf, pausedAt: null, laterCopy: true };
-  items.push(
-    newItem({
-      title: it.title,
-      min: remainder(it, w),
-      hue: it.hue,
-      kind: it.kind === 'fixed' ? 'task' : it.kind,
-      note: it.note,
-      subtasks: it.subtasks,
-      continued: true,
-    }),
-  );
+  items.push(restOf(it, w));
   return { ...day, items };
 }
 
