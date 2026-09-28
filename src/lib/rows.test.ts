@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { dragShifts, type TimelineRow } from './rows';
+import * as A from './actions';
+import { dragShifts, itemVM, type TimelineRow } from './rows';
+import { schedule } from './schedule';
+import type { Day } from './types';
 
 // Just enough of each row for dragShifts: items a–d, with an idle-time row in front of c.
 const item = (id: string, idx: number) => ({ type: 'item', key: id, id, idx }) as unknown as TimelineRow;
@@ -25,5 +28,22 @@ describe('dragShifts', () => {
     expect(dragShifts(rows, { id: 'b', over: 4, h: 40 }, 4)).toEqual({ gc: -40, c: -40, d: -40 });
     expect(dragShifts(rows, { id: 'b', over: 2, h: 40 }, 4)).toEqual({}); // before c is where b already is
     expect(dragShifts(rows, { id: 'b', over: null, h: 40 }, 4)).toEqual({});
+  });
+});
+
+describe('a long pause', () => {
+  it('still shows on the task once it is done', () => {
+    // An hour's task started at 2 pm, paused at 2:10, resumed at 7 and done at 7:50.
+    let d: Day = {
+      key: '2026-09-27',
+      dayStart: 840,
+      wrap: 1320,
+      dayStarted: null,
+      items: [A.newItem({ title: 'Deep work', min: 60, id: 'a' })],
+    };
+    d = A.finish(A.resume(A.pause(A.startDay(d, 840), 'a', 850), 'a', 1140), 'a', 1190);
+    const row = schedule(d, 1190).rows[0];
+    const vm = itemVM(row, { day: d, rows: [row], n: 1190, isToday: true, showTimes: true, clock24: false });
+    expect(vm.sub).toBe('worked 1h · paused 4h 50m');
   });
 });

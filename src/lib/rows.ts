@@ -113,6 +113,8 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
   let sub: string | null = null,
     subTone = 'var(--muted)';
   if (s === 'done' && Math.abs(w - it.min) >= 1) sub = 'took ' + dL(w);
+  // A finished task keeps its pause on show: it explains the jump to whatever came next.
+  if (s === 'done' && it.pausedFor >= 1) sub = `worked ${dL(w)} · paused ${dL(it.pausedFor)}`;
   if (s === 'done' && it.marked) sub = 'marked done';
   if (pBuf) sub = 'passed';
   if (s === 'postponed') {
