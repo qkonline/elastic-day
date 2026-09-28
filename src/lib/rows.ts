@@ -137,7 +137,7 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
   const flags: Flag[] = [];
   if (missed) flags.push({ t: 'Missed', tone: 'y' });
   if (r.runsInto) flags.push({ t: 'runs into a fixed event', tone: 'y' });
-  if (r.pastEnd) flags.push({ t: "won't fit today", tone: 'r' });
+  if (r.pastEnd) flags.push({ t: 'past wrap-up', tone: 'r' });
 
   const badges: string[] = [];
   if (it.repeat !== 'Once') badges.push('↻ ' + it.repeat);

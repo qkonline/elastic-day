@@ -248,12 +248,28 @@ describe('Planner', () => {
     expect(p.sch.rows.map((r) => `${r.it.title} ${r.start}`)).toEqual(['A 540', 'C 570', 'B 660', 'D 690']);
   });
 
-  it('starting after the planned wrap-up counts a full day from then', async () => {
-    vi.setSystemTime(new Date(2026, 8, 25, 18, 0));
+  it('starting late moves the wrap-up so the day keeps its planned length', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 14, 54)); // a 9-to-5 plan started at 2:54 pm
     const p = await boot();
-    add(p, 'Evening work');
+    add(p, 'Afternoon work');
     p.startDay();
-    expect(p.day).toMatchObject({ dayStarted: 1080, dayStart: 1080, wrap: 1080 + 480 });
+    expect(p.day).toMatchObject({ dayStarted: 894, dayStart: 540, wrap: 894 + 480 });
+  });
+
+  it('starting early leaves the wrap-up where it was', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 8, 30));
+    const p = await boot();
+    add(p, 'Early start');
+    p.startDay();
+    expect(p.day).toMatchObject({ dayStarted: 510, wrap: 1020 });
+  });
+
+  it('Reschedule → Start now before Start my day moves the wrap-up the same way', async () => {
+    vi.setSystemTime(new Date(2026, 8, 25, 14, 0));
+    const p = await boot();
+    add(p, 'A');
+    p.reschedNow(byTitle(p, 'A').id);
+    expect(p.day).toMatchObject({ dayStarted: 840, wrap: 840 + 480 });
   });
 
   it('shows the welcome once, and never to someone who already has a plan', async () => {

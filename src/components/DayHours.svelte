@@ -15,7 +15,7 @@
   }
   const note = $derived(
     started != null
-      ? `You started at ${fNZ(started, P.settings.clock24)}. Anything that won't fit before your wrap-up gets flagged.`
+      ? `You started at ${fNZ(started, P.settings.clock24)}. Anything planned past your wrap-up gets flagged.`
       : 'The plan begins here until you tap Start my day. Going past the wrap-up time gets flagged, never blocked.',
   );
 </script>

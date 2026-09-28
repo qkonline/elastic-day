@@ -468,11 +468,10 @@ export class Planner {
       this.alerted.delete(first.id);
       this.finishElsewhere();
     }
-    // With a flexible start, or starting after the planned wrap-up (when those hours no longer
-    // mean anything), the day's length counts from now.
-    const s = this.settings;
-    const flex = s.flexStart || n >= this.day.wrap ? { dayStart: n, wrap: n + s.dayLength } : {};
-    this.update((d) => ({ ...A.startDay(d, n), ...flex }), first ? `${first.title} started` : 'Day started');
+    this.update(
+      (d) => ({ ...A.startDay(d, n), ...this.opening(d, n) }),
+      first ? `${first.title} started` : 'Day started',
+    );
     this.celebrate = { kind: 'start', at: n, first: first?.title ?? null };
     if (first) this.offerNotifications();
   }
@@ -537,17 +536,22 @@ export class Planner {
     this.update((d) => {
       if (d.dayStarted != null) return A.startItem(d, id, n);
       // This starts the day (Reschedule → Start now before Start my day). Start from the plan
-      // as shown, so what it shows as missed stays missed; a flexible day, or one starting after
-      // its wrap-up, then runs for the usual length from now.
-      const s = this.settings;
-      const out = A.startItem(this.planDay, id, n);
-      return s.flexStart
-        ? { ...out, dayStart: n, wrap: n + s.dayLength }
-        : n >= d.wrap
-          ? { ...out, wrap: n + s.dayLength }
-          : out;
+      // as shown, so what it shows as missed stays missed.
+      return { ...A.startItem(this.planDay, id, n), ...this.opening(d, n) };
     }, `${it.title} started`);
     this.offerNotifications();
+  }
+
+  /**
+   * A day's hours once it starts at `n`. A flexible day runs its usual length from now. Any
+   * other day keeps its planned length when it starts late, so its wrap-up moves later by as
+   * much; starting early leaves the wrap-up where it was.
+   */
+  private opening(d: Day, n: number): Partial<Day> {
+    const s = this.settings;
+    if (s.flexStart) return { dayStart: n, wrap: n + s.dayLength };
+    const length = d.wrap > d.dayStart ? d.wrap - d.dayStart : s.dayLength;
+    return { wrap: Math.max(d.wrap, n + length) };
   }
 
   /** Only one timer at a time across all days: finish one left running on another day. */
