@@ -7,7 +7,15 @@ import { download, parseBackup } from './backup';
 import * as db from './db';
 import { hasNotifications, needsInstallForNotifications } from './platform';
 import { cancelPush, preparePush, schedulePush, unsubscribePush } from './push';
-import { materialize, seriesFromItem, syncSeriesInto } from './repeat';
+import {
+  materialize,
+  orderAt,
+  orderNextTo,
+  orderSeries,
+  placeBySeries,
+  seriesFromItem,
+  syncSeriesInto,
+} from './repeat';
 import { sampleItems } from './sample';
 import { dayStats, type DayStats, isActive, schedule, worked } from './schedule';
 import {
@@ -37,7 +45,8 @@ export type Sheet =
   | { type: 'hours' }
   | { type: 'add' }
   | { type: 'install' }
-  | { type: 'wrapup' };
+  | { type: 'wrapup' }
+  | { type: 'reorder'; id: string; anchor: string; dir: 'up' | 'down' };
 export type ConfirmType = 'postpone' | 'delete' | 'clear' | 'erase' | 'sample';
 export interface Confirm {
   type: ConfirmType;
@@ -160,6 +169,7 @@ export class Planner {
       this.today = activeDayKey(todayKey(), this.days, Date.now());
       this.viewKey = this.today;
       await this.ensureDay(this.today);
+      await this.fillSeriesOrder();
       await this.loadWeek();
       if (!s && (this.stored.size || series.length)) this.setSettings({ onboarded: true });
       // Anything already over time when the page loads has had its alert.
@@ -345,6 +355,22 @@ export class Planner {
         this.stored.add(k);
       }
     }
+  }
+
+  /**
+   * Repeating tasks saved before they had an order take the order they have on the latest
+   * stored day up to today, the plan as the user last arranged it.
+   */
+  private async fillSeriesOrder(): Promise<void> {
+    const base = Object.keys(this.days)
+      .filter((k) => this.stored.has(k) && k <= this.today)
+      .sort()
+      .pop();
+    const next = orderSeries(this.series, base ? this.days[base] : undefined);
+    if (next === this.series) return;
+    this.series = next;
+    for (const s of next) await db.putSeries(s);
+    this.rebuildUnstored();
   }
 
   /** Days that exist only as templates get rebuilt after repeating items or defaults change. */
@@ -736,7 +762,7 @@ export class Planner {
       return;
     }
     const key = this.viewKey;
-    const s = seriesFromItem({ ...it, repeat }, key, A.uid());
+    const s = seriesFromItem({ ...it, repeat }, key, A.uid(), orderAt(this.series, this.day.items, id));
     this.series = [...this.series, s];
     this.update((d) => A.patchItem(d, id, { repeat, seriesId: s.id }));
     await db.putSeries(s);
@@ -784,7 +810,7 @@ export class Planner {
     const it = this.days[key]?.items.find((i) => i.seriesId === sid);
     const old = this.series.find((x) => x.id === sid);
     if (!it || !old) return;
-    const s: Series = { ...seriesFromItem(it, old.from, sid), until: old.until };
+    const s: Series = { ...seriesFromItem(it, old.from, sid, old.order), until: old.until };
     this.series = this.series.map((x) => (x.id === sid ? s : x));
     await db.putSeries(s);
     this.post({ t: 'series' });
@@ -793,18 +819,63 @@ export class Planner {
 
   /** Apply a series change (`prev` → `next`) to stored days after `key` (never past days) not yet started. */
   private async propagate(next: Series, prev: Series | null, sid: string, key: string): Promise<void> {
+    for (const d of await this.laterDays(key)) {
+      const synced = syncSeriesInto(d, next, prev, sid);
+      if (synced !== d) this.put(synced);
+    }
+    this.rebuildUnstored();
+  }
+
+  /** Stored days after `key` (never past days) that haven't been started. */
+  private async laterDays(key: string): Promise<Day[]> {
     await this.flush();
     const after = addDays(key, 1);
     const from = after > this.today ? after : this.today;
     const later = new Map((await db.getDays(from, '9999-12-31')).map((d) => [d.key, d]));
     // Include stored days held in memory, and prefer them: they're never older than the database.
     for (const [k, d] of Object.entries(this.days)) if (k >= from && this.stored.has(k)) later.set(k, d);
-    for (const d of later.values()) {
-      if (d.dayStarted != null) continue;
-      const synced = syncSeriesInto(d, next, prev, sid);
-      if (synced !== d) this.put(synced);
+    return [...later.values()].filter((d) => d.dayStarted == null);
+  }
+
+  /**
+   * After a repeating task is dragged past another repeating task, ask whether later days should
+   * have it that way round too (`anchor` is the one it now sits before, or after). Not asked
+   * when they already do, or on past days.
+   */
+  private reorderQuestion(id: string, dir: 'up' | 'down'): Sheet | null {
+    const it = this.item(id);
+    const mine = it?.seriesId ? this.series.find((x) => x.id === it.seriesId) : undefined;
+    if (!it || !mine || this.viewKey < this.today) return null;
+    const live = (x: Item) =>
+      !!x.seriesId &&
+      x.seriesId !== mine.id &&
+      this.series.some((y) => y.id === x.seriesId && (y.until == null || y.until >= this.viewKey));
+    const items = this.day.items;
+    const i = items.findIndex((x) => x.id === id);
+    const next = dir === 'up' ? items.slice(i + 1).find(live) : items.slice(0, i).reverse().find(live);
+    const other = next && this.series.find((y) => y.id === next.seriesId);
+    if (!other || (dir === 'up' ? mine.order < other.order : mine.order > other.order)) return null;
+    return { type: 'reorder', id, anchor: other.id, dir };
+  }
+
+  /** "Later days too": move the repeating task on later days the way it was just moved here. */
+  async reorderLaterDays(): Promise<void> {
+    const q = this.sheet;
+    if (q?.type !== 'reorder') return;
+    this.sheet = null;
+    const it = this.item(q.id);
+    const s = it?.seriesId ? this.series.find((x) => x.id === it.seriesId) : undefined;
+    if (!it || !s) return;
+    const next = { ...s, order: orderNextTo(this.series, s.id, q.anchor, q.dir === 'up' ? 'before' : 'after') };
+    this.series = this.series.map((x) => (x.id === s.id ? next : x));
+    await db.putSeries(next);
+    this.post({ t: 'series' });
+    for (const d of await this.laterDays(this.viewKey)) {
+      const placed = placeBySeries(d, s.id, this.series);
+      if (placed !== d) this.put(placed);
     }
     this.rebuildUnstored();
+    this.say(`${it.title} moved on later days too`);
   }
 
   // ---------- drag ----------
@@ -823,6 +894,9 @@ export class Planner {
     if (to > from) to--;
     if (to === from) return;
     this.update((day) => A.reorder(day, d.id, d.over!), it ? `Moved ${it.title} to position ${to + 1}` : undefined);
+    // Only a drag asks about later days; starting a timer or rescheduling changes this day alone.
+    const ask = this.reorderQuestion(d.id, to > from ? 'down' : 'up');
+    if (ask) this.sheet = ask;
   }
 
   // ---------- day ----------

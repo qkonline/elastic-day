@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { newItem } from './actions';
 import { parseBackup } from './backup';
-import { materialize, repeatMatches, seriesFromItem, syncSeriesInto } from './repeat';
-import type { Day } from './types';
+import {
+  materialize,
+  orderAt,
+  orderNextTo,
+  orderSeries,
+  placeBySeries,
+  repeatMatches,
+  seriesFromItem,
+  syncSeriesInto,
+} from './repeat';
+import type { Day, Series } from './types';
 
 // 2026-09-25 is a Friday.
 describe('repeat rules', () => {
@@ -161,3 +170,65 @@ describe('backup parsing', () => {
     expect(new Set(ids).size).toBe(2);
   });
 });
+
+describe('order of repeating tasks', () => {
+  const S = (title: string, order: number): Series =>
+    seriesFromItem(newItem({ title, repeat: 'Every day' }), '2026-09-25', title, order);
+  const titles = (d: Day) => d.items.map((i) => i.title);
+
+  it('builds later days in the series order, not the order they were saved in', () => {
+    expect(titles(materialize('2026-09-26', [S('B', 2), S('A', 1), S('C', 3)], 540, 1020, '2026-09-25'))).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
+  });
+
+  it('gives series saved without an order the order of a stored day', () => {
+    const [a, b, c] = [S('A', NaN), S('B', NaN), S('C', NaN)];
+    const day: Day = {
+      key: '2026-09-25',
+      dayStart: 540,
+      wrap: 1020,
+      dayStarted: 540,
+      items: [itemOf(b), newItem({ title: 'one-off' }), itemOf(a)],
+    };
+    const out = orderSeries([a, b, c], day);
+    expect(titles(materialize('2026-09-26', out, 540, 1020, '2026-09-25'))).toEqual(['B', 'A', 'C']);
+    const ordered = [S('A', 0)];
+    expect(orderSeries(ordered, day)).toBe(ordered);
+  });
+
+  it('places a series right before or after another', () => {
+    const list = [S('A', 1), S('B', 2), S('C', 3)];
+    expect(orderNextTo(list, 'C', 'A', 'before')).toBe(0);
+    expect(orderNextTo(list, 'C', 'A', 'after')).toBe(1.5);
+    expect(orderNextTo(list, 'A', 'C', 'after')).toBe(4);
+  });
+
+  it('puts a task that starts repeating after the repeating task above it', () => {
+    const list = [S('A', 1), S('B', 2)];
+    const items = [itemOf(list[0]), newItem({ title: 'new', id: 'n' }), itemOf(list[1])];
+    expect(orderAt(list, items, 'n')).toBe(1.5);
+    expect(orderAt([], [newItem({ title: 'n', id: 'n' })], 'n')).toBe(0);
+  });
+
+  it('moves a task on a stored later day to where its order says, around one-off tasks', () => {
+    const list = [S('A', 1), S('B', 0.5), S('C', 3)];
+    const day: Day = {
+      key: '2026-09-27',
+      dayStart: 540,
+      wrap: 1020,
+      dayStarted: null,
+      items: [itemOf(list[0]), newItem({ title: 'one-off' }), itemOf(list[1]), itemOf(list[2])],
+    };
+    expect(titles(placeBySeries(day, 'B', list))).toEqual(['B', 'A', 'one-off', 'C']);
+    const last = [S('A', 1), S('B', 9)];
+    const d2: Day = { ...day, items: [itemOf(last[1]), itemOf(last[0]), newItem({ title: 'one-off' })] };
+    expect(titles(placeBySeries(d2, 'B', last))).toEqual(['A', 'B', 'one-off']);
+  });
+});
+
+function itemOf(s: Series) {
+  return newItem({ title: s.title, repeat: s.repeat, seriesId: s.id });
+}

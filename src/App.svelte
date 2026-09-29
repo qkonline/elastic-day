@@ -13,6 +13,7 @@
   import InstallGuide from './components/InstallGuide.svelte';
   import NotifyPrompt from './components/NotifyPrompt.svelte';
   import PullIndicator from './components/PullIndicator.svelte';
+  import ReorderAsk from './components/ReorderAsk.svelte';
   import RunningElsewhere from './components/RunningElsewhere.svelte';
   import StartDay from './components/StartDay.svelte';
   import Settings from './components/Settings.svelte';
@@ -103,6 +104,7 @@
     settings: 'Settings',
     install: 'Install',
     wrapup: 'End your day',
+    reorder: 'Later days',
   } as const;
 </script>
 
@@ -160,7 +162,10 @@
       <Sheet
         variant={shownSheet.type === 'add'
           ? 'form'
-          : shownSheet.type === 'hours' || shownSheet.type === 'install' || shownSheet.type === 'wrapup'
+          : shownSheet.type === 'hours' ||
+              shownSheet.type === 'install' ||
+              shownSheet.type === 'wrapup' ||
+              shownSheet.type === 'reorder'
             ? 'small'
             : 'full'}
         label={LABELS[shownSheet.type]}
@@ -175,6 +180,8 @@
           <InstallGuide />
         {:else if shownSheet.type === 'wrapup'}
           <WrapUp />
+        {:else if shownSheet.type === 'reorder'}
+          <ReorderAsk id={shownSheet.id} anchor={shownSheet.anchor} dir={shownSheet.dir} />
         {:else}
           <Settings />
         {/if}

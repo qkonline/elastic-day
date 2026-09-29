@@ -16,7 +16,7 @@ export function seriesApplies(s: Series, key: string): boolean {
   return repeatMatches(s.repeat, key);
 }
 
-export function seriesFromItem(it: Item, from: string, id = it.seriesId ?? uid()): Series {
+export function seriesFromItem(it: Item, from: string, id = it.seriesId ?? uid(), order = 0): Series {
   return {
     id,
     title: it.title,
@@ -29,6 +29,7 @@ export function seriesFromItem(it: Item, from: string, id = it.seriesId ?? uid()
     subtasks: it.subtasks.map((x) => ({ id: x.id, t: x.t })),
     from,
     until: null,
+    order,
   };
 }
 
@@ -46,10 +47,75 @@ export function itemFromSeries(s: Series): Item {
   });
 }
 
-/** A day that has never been stored: today or later gets its repeating items, fixed ones by time. */
+const byOrder = (a: Series, b: Series) => a.order - b.order;
+
+/** A day that has never been stored: today or later gets its repeating items, in their order. */
 export function materialize(key: string, series: Series[], dayStart: number, wrap: number, today: string): Day {
-  const items = key >= today ? series.filter((s) => seriesApplies(s, key)).map(itemFromSeries) : [];
+  const items =
+    key >= today
+      ? series
+          .filter((s) => seriesApplies(s, key))
+          .sort(byOrder)
+          .map(itemFromSeries)
+      : [];
   return { key, dayStart, wrap, dayStarted: null, items };
+}
+
+/**
+ * Give series without an order one: the order their tasks have on `day` (the plan the user has
+ * arranged), then any others as they come.
+ */
+export function orderSeries(series: Series[], day: Day | undefined): Series[] {
+  if (series.every((s) => Number.isFinite(s.order))) return series;
+  const onDay = (day?.items ?? []).map((i) => i.seriesId);
+  const rank = (s: Series) => {
+    const at = onDay.indexOf(s.id);
+    return at < 0 ? Infinity : at;
+  };
+  const sorted = series.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i);
+  return series.map((s) => ({ ...s, order: sorted.findIndex((x) => x.s === s) }));
+}
+
+/** An order that puts series `moving` right before or after series `anchor`. */
+export function orderNextTo(series: Series[], moving: string, anchor: string, side: 'before' | 'after'): number {
+  const list = series.filter((s) => s.id !== moving).sort(byOrder);
+  const i = list.findIndex((s) => s.id === anchor);
+  if (i < 0) return list.length ? list[list.length - 1].order + 1 : 0;
+  const a = list[i].order;
+  const b = side === 'before' ? list[i - 1]?.order : list[i + 1]?.order;
+  return b == null ? a + (side === 'before' ? -1 : 1) : (a + b) / 2;
+}
+
+/**
+ * The order for a task of `day` that has just started repeating: after the repeating task
+ * above it, or before the one below it, or last.
+ */
+export function orderAt(series: Series[], items: Item[], id: string): number {
+  const i = items.findIndex((x) => x.id === id);
+  const known = (x: Item | undefined) => !!x?.seriesId && series.some((s) => s.id === x.seriesId);
+  const above = items.slice(0, i).reverse().find(known);
+  if (above) return orderNextTo(series, '', above.seriesId!, 'after');
+  const below = items.slice(i + 1).find(known);
+  if (below) return orderNextTo(series, '', below.seriesId!, 'before');
+  return series.length ? Math.max(...series.map((s) => s.order)) + 1 : 0;
+}
+
+/**
+ * Put series `sid`'s task on a (not yet started) day where its order says: before the first
+ * repeating task that comes after it, or else just after the last one that comes before it.
+ */
+export function placeBySeries(day: Day, sid: string, series: Series[]): Day {
+  const order = new Map(series.map((s) => [s.id, s.order]));
+  const it = day.items.find((i) => i.seriesId === sid);
+  const mine = order.get(sid);
+  if (!it || it.status !== 'todo' || mine == null) return day;
+  const rest = day.items.filter((i) => i !== it);
+  const rank = (x: Item) => (x.seriesId ? order.get(x.seriesId) : undefined);
+  let at = rest.findIndex((x) => (rank(x) ?? -Infinity) > mine);
+  if (at < 0) for (let k = 0; k < rest.length; k++) if ((rank(rest[k]) ?? Infinity) < mine) at = k + 1;
+  if (at < 0) return day; // no other repeating task to go by
+  rest.splice(at, 0, it);
+  return rest.every((x, k) => x === day.items[k]) ? day : { ...day, items: rest };
 }
 
 /**

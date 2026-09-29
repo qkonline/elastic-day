@@ -4,6 +4,8 @@
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as db from './db';
+import type { Series } from './types';
+import * as A from './actions';
 import { Planner } from './planner.svelte';
 import { isMissed } from './schedule';
 
@@ -284,6 +286,91 @@ describe('Planner', () => {
     await p.eraseAll();
     await db.putDay({ key: TODAY, dayStart: 540, wrap: 1020, dayStarted: null, items: [] });
     expect((await boot()).showWelcome).toBe(false);
+  });
+
+  it('asks about later days when a repeating task is dragged past another one', async () => {
+    const p = await boot();
+    const rep = (title: string) =>
+      p.addTask({ title, min: 30, kind: 'task', hue: 'cyan', fixedAt: null, repeat: 'Every day' });
+    rep('A');
+    rep('B');
+    add(p, 'One-off');
+    await new Promise((r) => setTimeout(r, 50));
+    // A stored later day, and one only built from the repeating tasks.
+    await p.switchDay('2026-09-27');
+    add(p, 'Sunday errand');
+    await p.switchDay(TODAY);
+
+    p.drag = { id: byTitle(p, 'B').id, over: 0, dy: 0, h: 50 };
+    p.commitDrag();
+    expect(p.day.items.map((i) => i.title)).toEqual(['B', 'A', 'One-off']);
+    expect(p.sheet).toMatchObject({ type: 'reorder', dir: 'up' });
+
+    await p.reorderLaterDays();
+    expect(p.sheet).toBeNull();
+    await p.switchDay(TOMORROW);
+    expect(p.day.items.map((i) => i.title)).toEqual(['B', 'A']);
+    await p.switchDay('2026-09-27');
+    expect(p.day.items.map((i) => i.title)).toEqual(['B', 'A', 'Sunday errand']);
+
+    // Dragging it back today: later days already have it the other way, so ask again.
+    await p.switchDay(TODAY);
+    p.drag = { id: byTitle(p, 'B').id, over: 2, dy: 0, h: 50 };
+    p.commitDrag();
+    expect(p.sheet).toMatchObject({ type: 'reorder', dir: 'down' });
+    p.closeSheet(); // Just today
+    await p.switchDay(TOMORROW);
+    expect(p.day.items.map((i) => i.title)).toEqual(['B', 'A']);
+  });
+
+  it("doesn't ask when a task moves only past one-off tasks, or when starting a timer reorders", async () => {
+    const p = await boot();
+    p.addTask({ title: 'A', min: 30, kind: 'task', hue: 'cyan', fixedAt: null, repeat: 'Every day' });
+    add(p, 'X');
+    p.addTask({ title: 'B', min: 30, kind: 'task', hue: 'cyan', fixedAt: null, repeat: 'Every day' });
+    await new Promise((r) => setTimeout(r, 50));
+    p.drag = { id: byTitle(p, 'B').id, over: 1, dy: 0, h: 50 }; // past X only
+    p.commitDrag();
+    expect(p.sheet).toBeNull();
+    p.startDay();
+    p.startItem(byTitle(p, 'B').id);
+    expect(p.day.items.map((i) => i.title).indexOf('B')).toBeLessThan(p.day.items.map((i) => i.title).indexOf('X'));
+    expect(p.sheet).toBeNull();
+    await p.switchDay(TOMORROW);
+    expect(p.day.items.map((i) => i.title)).toEqual(['A', 'B']);
+  });
+
+  it('gives repeating tasks saved before they had an order the order of the plan', async () => {
+    const mk = (id: string, title: string) => ({
+      id,
+      title,
+      min: 30,
+      kind: 'task' as const,
+      hue: 'cyan' as const,
+      fixedAt: null,
+      repeat: 'Every day',
+      note: '',
+      subtasks: [],
+      from: TODAY,
+      until: null,
+    });
+    // Saved in the order A, B (ids sort that way too), arranged today as B, A.
+    await db.putSeries(mk('s1', 'A') as unknown as Series);
+    await db.putSeries(mk('s2', 'B') as unknown as Series);
+    await db.putDay({
+      key: TODAY,
+      dayStart: 540,
+      wrap: 1020,
+      dayStarted: null,
+      items: [
+        { ...A.newItem({ title: 'B', repeat: 'Every day' }), seriesId: 's2' },
+        { ...A.newItem({ title: 'A', repeat: 'Every day' }), seriesId: 's1' },
+      ],
+    });
+    const p = await boot();
+    await p.switchDay(TOMORROW);
+    expect(p.day.items.map((i) => i.title)).toEqual(['B', 'A']);
+    expect((await db.getAllSeries()).every((s) => Number.isFinite(s.order))).toBe(true);
   });
 
   it('erases everything', async () => {

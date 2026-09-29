@@ -102,7 +102,7 @@ function normalizeDay(raw: unknown): Day | null {
   };
 }
 
-function normalizeSeries(raw: unknown): Series | null {
+function normalizeSeries(raw: unknown, index: number): Series | null {
   const r = obj(raw);
   if (typeof r.id !== 'string' || !r.id || typeof r.from !== 'string' || !KEY.test(r.from)) return null;
   const repeat = str(r.repeat, '');
@@ -120,6 +120,7 @@ function normalizeSeries(raw: unknown): Series | null {
     subtasks: normalizeSteps(r.subtasks).map(({ id, t }) => ({ id, t })),
     from: r.from,
     until: typeof r.until === 'string' && KEY.test(r.until) ? r.until : null,
+    order: num(r.order, index)!,
   };
 }
 

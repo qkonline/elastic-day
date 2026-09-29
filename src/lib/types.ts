@@ -93,8 +93,10 @@ export interface Series {
   subtasks: { id: string; t: string }[];
   /** First day key the series applies to. */
   from: string;
-  /** Day key after which it stops (set by "Stop repeating"), or null while active. */
+  /** Day key after which it stops (set when repeating is switched off), or null while active. */
   until: string | null;
+  /** Where it goes among the repeating tasks on days built from them: lower comes first. */
+  order: number;
 }
 
 export const HUES: Record<HueName, string> = {
