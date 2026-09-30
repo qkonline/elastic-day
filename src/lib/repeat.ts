@@ -1,4 +1,4 @@
-import { newItem, uid } from './actions';
+import { newItem, placeFixed, uid } from './actions';
 import { keyDate, weekdayLong } from './time';
 import type { Day, Item, Repeat, Series } from './types';
 
@@ -135,7 +135,9 @@ export function syncSeriesInto(day: Day, next: Series | null, prev: Series | nul
   const applies = !!next && seriesApplies(next, day.key);
   if (idx < 0) {
     const newlyApplies = applies && !(prev && seriesApplies(prev, day.key));
-    return newlyApplies ? { ...day, items: [...day.items, itemFromSeries(next!)] } : day;
+    if (!newlyApplies) return day;
+    const it = itemFromSeries(next!);
+    return placeFixed({ ...day, items: [...day.items, it] }, it.id, 0);
   }
   const cur = day.items[idx];
   if (cur.status !== 'todo') return day;
@@ -160,5 +162,7 @@ export function syncSeriesInto(day: Day, next: Series | null, prev: Series | nul
       subtasks: steps,
     };
   }
-  return { ...day, items };
+  // A fixed time that changed goes where the new time falls.
+  const moved = applies && (cur.fixedAt !== next!.fixedAt || cur.kind !== next!.kind);
+  return moved ? placeFixed({ ...day, items }, cur.id, 0) : { ...day, items };
 }

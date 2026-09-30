@@ -11,6 +11,8 @@ export interface Row {
   runsInto?: boolean;
   /** An open item ends after the wrap-up time. */
   pastEnd?: boolean;
+  /** A fixed item that starts later than its set time, because of what's planned before it. */
+  moved?: boolean;
 }
 
 export const isActive = (it: Item) => it.status === 'running' || it.status === 'paused';
@@ -42,6 +44,12 @@ export function pausedTotal(it: Item, n: number): number {
  * Walk the items in order and compute each one's start and end. Recomputed every tick.
  * Idle time does not slide the plan: when nothing runs, planned times stay put, and that
  * is how items become missed. A paused item does push everything after it later.
+ *
+ * A fixed item starts at its set time, or when the tasks lined up before it end, if that's
+ * later (it's then `moved`). Only tasks still to do move it: with nothing lined up in front of
+ * it (just what's done), or with a timer running or paused in front of it, it holds its time
+ * and what overlaps it is flagged `runsInto`, since a meeting doesn't wait for whatever you've
+ * just started.
  */
 export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
   const started = day.dayStarted != null;
@@ -53,6 +61,12 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
     cur = Math.min(day.dayStart, cur);
   // Idle time only counts once the day has started.
   const idle = (start: number) => start - Math.max(cur, started ? day.dayStarted! : cur);
+  // Where the plan has got to, for placing fixed items: what's done, then the tasks lined up.
+  // Since the last fixed item: `lined` once a task still to do has been counted, `timing` once
+  // a running or paused item has.
+  let plan = cur;
+  let lined = false;
+  let timing = false;
 
   const rows: Row[] = day.items.map((it, idx) => {
     let start: number,
@@ -60,6 +74,7 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
       gap = 0;
     const s = it.status;
     // Checks (no duration) and skipped or moved items take no room in the plan.
+    let moved = false;
     if (it.kind === 'check' || s === 'skipped' || (s === 'postponed' && !isPartial(it))) {
       start = end = cur;
     } else if (s === 'done' || isPartial(it)) {
@@ -67,26 +82,35 @@ export function schedule(day: Day, n: number): { rows: Row[]; finish: number } {
       end = it.endedAt ?? start;
       gap = idle(start);
       cur = Math.max(cur, end);
+      plan = Math.max(plan, end);
     } else if (s === 'running') {
       start = it.startedAt!;
       gap = idle(start);
       end = Math.max(n, start + it.min + it.pausedFor);
       cur = end;
+      timing = true;
     } else if (s === 'paused') {
       start = it.startedAt!;
       gap = idle(start);
       end = n + Math.max(0, it.min - (it.pausedAt! - start - it.pausedFor));
       cur = end;
+      timing = true;
     } else if (it.kind === 'fixed') {
-      start = it.fixedAt ?? cur;
+      const at = it.fixedAt ?? cur;
+      start = lined && !timing ? Math.max(at, plan) : at;
+      moved = start > at + 0.5;
       end = start + it.min;
       cur = Math.max(cur, end);
+      plan = end;
+      lined = timing = false;
     } else {
       start = cur;
       end = start + it.min;
       cur = end;
+      plan = timing ? cur : plan + it.min;
+      lined = true;
     }
-    return { it, idx, start, end, gap: gap >= 1 ? gap : 0 };
+    return { it, idx, start, end, gap: gap >= 1 ? gap : 0, ...(moved ? { moved } : {}) };
   });
 
   // Warnings are about what's still to fit, so an ended day has none.

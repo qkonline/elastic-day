@@ -156,6 +156,23 @@ describe('starting late', () => {
     expect(plan(d1, 580)).toEqual(['mail 540-570', 'c 580-610', 'a 610-640', 'b 640-670']);
   });
 
+  it('adds a fixed item where its time falls, so a busy plan does not push it', () => {
+    const d0 = day([t('a', 60), t('b', 60), t('c', 60)]); // 9:00, 10:00, 11:00
+    const call = { ...t('call', 30, { kind: 'fixed' as const, fixedAt: 630 }) }; // 10:30
+    const d1 = A.addItem(d0, call, 500);
+    // In front of b, which would clash with it, leaving a gap rather than an overlap.
+    expect(d1.items.map((i) => i.id)).toEqual(['a', 'call', 'b', 'c']);
+    expect(plan(d1, 500)).toEqual(['a 540-600', 'call 630-660', 'b 660-720', 'c 720-780']);
+    // A later time moves it along the list, an earlier one before everything it would clash with.
+    expect(A.placeFixed(A.patchItem(d1, 'call', { fixedAt: 720 }), 'call', 500).items.map((i) => i.id)).toEqual([
+      'a',
+      'b',
+      'c',
+      'call',
+    ]);
+    expect(A.placeFixed(A.patchItem(d1, 'call', { fixedAt: 540 }), 'call', 500).items[0].id).toBe('call');
+  });
+
   it('keeps fixed-time items at their time', () => {
     const d0 = day([t('a', 30), t('meet', 30, { kind: 'fixed', fixedAt: 900 }), t('b', 60)], { dayStarted: 540 });
     const d1 = A.startItem(d0, 'b', 720);

@@ -129,7 +129,12 @@
     <div class="meta">
       <button class="dur hit" style:--hit-x="4px" style:--hit-y="12px" onclick={open}>{dL(it.min)}</button>
       {#if v.sub}<span style:color={v.subTone}>{v.sub}</span>{/if}
-      {#if v.fixedAt}<span class="fixed">fixed · {v.fixedAt}</span>{/if}
+      {#if v.fixedNow}
+        <!-- Moved by the tasks before it: the time it was set for, and where it is now. -->
+        <span class="fixed moved" aria-label="fixed at {v.fixedAt}, moved to {v.fixedNow}"
+          >fixed · <s>{v.fixedAt}</s> {v.fixedNow}</span
+        >
+      {:else if v.fixedAt}<span class="fixed">fixed · {v.fixedAt}</span>{/if}
       {#if showSkip}
         <button class="hover-btn skip" onclick={() => P.skip(id)}>Skip</button>
         <button class="hover-btn pp" onclick={() => P.arm('postpone', id)}>Postpone</button>
@@ -358,6 +363,14 @@
     background: var(--sunk);
     color: var(--text);
     border: 1px solid var(--border);
+  }
+  .fixed.moved {
+    background: rgba(250, 204, 21, 0.14);
+    border-color: rgba(234, 179, 8, 0.45);
+  }
+  .fixed s {
+    color: var(--muted);
+    text-decoration-color: var(--muted);
   }
   .hover-btn {
     font: 400 13px/1 var(--font);

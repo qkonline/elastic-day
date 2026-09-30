@@ -10,10 +10,11 @@
   // What the chosen type means. Task is chosen by default, so its line also says what the other
   // two are for.
   const HINTS: Record<string, string> = {
-    task: 'Something to get done. A buffer keeps time free between tasks, and a fixed time stays put, like a call.',
+    task: 'Something to get done. A buffer keeps time free between tasks, and a fixed time starts at a set time, like a call.',
     buffer:
       'Time kept free between tasks: room for overruns, travel or a breather. It holds its place, and you never start it.',
-    fixed: 'Happens at a set time, like a meeting or a call. It stays put, and the rest of the day flows around it.',
+    fixed:
+      'Happens at a set time, like a meeting or a call. If the tasks you put before it run past that time, it moves later.',
   };
 </script>
 

@@ -13,7 +13,7 @@
   <div class="heads-up" style:--hue={hueColor(h.it.hue)}>
     <div class="text">
       <span class="t">{h.it.title}</span>
-      <span class="s">Coming up at {fT(h.it.fixedAt!, P.settings.clock24)}, in {mins} min</span>
+      <span class="s">Coming up at {fT(h.start, P.settings.clock24)}, in {mins} min</span>
     </div>
     <button class="close-x" aria-label="Close heads-up for {h.it.title}" onclick={() => P.dismissHeadsUp(h)}>×</button>
   </div>

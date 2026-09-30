@@ -213,8 +213,29 @@ export function setKind(day: Day, id: string, k: Kind): Day {
   }));
 }
 
-export function addItem(day: Day, it: Item): Day {
-  return { ...day, items: [...day.items, it] };
+/** Add an item at the end of the day, or a fixed one where its time falls (see placeFixed). */
+export function addItem(day: Day, it: Item, n = 0): Day {
+  const next = { ...day, items: [...day.items, it] };
+  return it.kind === 'fixed' ? placeFixed(next, it.id, n) : next;
+}
+
+/**
+ * Put a fixed item still to do where its time falls in the plan: in front of the first task
+ * still to do that would end after that time (or fixed item that starts after it), so the
+ * tasks before it fit and it keeps its time. Used when one is added, moved to another day, or
+ * its time or type changes; dragging it, or others around it, is left alone.
+ */
+export function placeFixed(day: Day, id: string, n: number): Day {
+  const it = find(day, id);
+  if (!it || it.kind !== 'fixed' || it.fixedAt == null || it.status !== 'todo') return day;
+  const t = it.fixedAt;
+  const rest = day.items.filter((i) => i.id !== id);
+  const after = schedule({ ...day, items: rest }, n).rows.find(
+    (r) => r.it.status === 'todo' && r.it.kind !== 'check' && (r.it.kind === 'fixed' ? r.start > t : r.end > t + 0.5),
+  );
+  const at = after ? after.idx : rest.length;
+  rest.splice(at, 0, it);
+  return rest.every((x, k) => x === day.items[k]) ? day : { ...day, items: rest };
 }
 
 /** Remaining minutes for a remainder copy (never less than 5). */

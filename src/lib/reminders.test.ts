@@ -24,10 +24,12 @@ describe('clock times as moments', () => {
 });
 
 describe('heads-ups before fixed times', () => {
+  const morning = new Date(2026, 8, 25, 8, 0).getTime();
+
   it('gives one for each fixed-time task still to do, the lead before it', () => {
     const call = fixed('Call', 900);
     const done = { ...fixed('Done', 960), status: 'done' as const };
-    const list = headsUps([day('2026-09-25', [newItem({ title: 'Loose' }), done, call])], 5);
+    const list = headsUps([day('2026-09-25', [newItem({ title: 'Loose' }), done, call])], 5, morning);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ it: call, tag: `fixed-2026-09-25-${call.id}` });
     expect(list[0].startsAt).toBe(new Date(2026, 8, 25, 15, 0).getTime());
@@ -35,13 +37,20 @@ describe('heads-ups before fixed times', () => {
   });
 
   it('gives none when switched off, or for a day that has ended', () => {
-    expect(headsUps([day('2026-09-25', [fixed('Call', 900)])], 0)).toEqual([]);
-    expect(headsUps([day('2026-09-25', [fixed('Call', 900)], { dayEnded: 800 })], 5)).toEqual([]);
+    expect(headsUps([day('2026-09-25', [fixed('Call', 900)])], 0, morning)).toEqual([]);
+    expect(headsUps([day('2026-09-25', [fixed('Call', 900)], { dayEnded: 800 })], 5, morning)).toEqual([]);
+  });
+
+  it('follows a fixed-time task the tasks before it have moved later', () => {
+    const rest = newItem({ title: 'Rest', kind: 'buffer', min: 60 });
+    const [h] = headsUps([day('2026-09-25', [rest, fixed('Session', 540)])], 5, morning);
+    expect(h.start).toBe(600);
+    expect(h.at).toBe(new Date(2026, 8, 25, 9, 55).getTime());
   });
 
   it('names a repeating task by its series, so a rebuilt day keeps the same tag', () => {
     const standup = { ...fixed('Standup', 570), seriesId: 'S1' };
-    expect(headsUps([day('2026-09-26', [standup])], 10)[0].tag).toBe('fixed-2026-09-26-S1');
+    expect(headsUps([day('2026-09-26', [standup])], 10, morning)[0].tag).toBe('fixed-2026-09-26-S1');
   });
 });
 

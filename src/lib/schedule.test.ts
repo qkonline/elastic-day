@@ -73,12 +73,55 @@ describe('schedule', () => {
     expect(isMissed(rows[1], 700)).toBe(true);
   });
 
-  it('flags items that run into a fixed event or past wrap-up', () => {
-    const d = day([t('long', 60), t('std', 15, { kind: 'fixed', fixedAt: 570 }), t('late', 600)]);
+  it('moves a fixed item later when the tasks lined up before it do not fit', () => {
+    // The screenshot: a 1h rest put in front of a 2h session fixed at 9:00.
+    const d = day([
+      t('rest', 60, { kind: 'buffer' }),
+      t('session', 120, { kind: 'fixed', fixedAt: 540 }),
+      t('next', 120),
+    ]);
     const { rows } = schedule(d, 500);
+    expect(rows.map((r) => [r.start, r.end])).toEqual([
+      [540, 600],
+      [600, 720],
+      [720, 840],
+    ]);
+    expect(rows[1].moved).toBe(true);
+    expect(rows[0].runsInto).toBeUndefined();
+    // With room to spare it keeps its time.
+    const roomy = schedule({ ...d, items: [t('short', 30), t('call', 30, { kind: 'fixed', fixedAt: 600 })] }, 500);
+    expect(roomy.rows[1]).toMatchObject({ start: 600 });
+    expect(roomy.rows[1].moved).toBeUndefined();
+  });
+
+  it('keeps a fixed item at its time for a running timer, and flags the overlap', () => {
+    const d = day(
+      [
+        t('long', 120, { status: 'running', startedAt: 510 }),
+        t('between', 30),
+        t('meet', 30, { kind: 'fixed', fixedAt: 540 }),
+      ],
+      { dayStarted: 510 },
+    );
+    const { rows } = schedule(d, 515);
+    expect(rows[2]).toMatchObject({ start: 540, end: 570 });
+    expect(rows[2].moved).toBeUndefined();
     expect(rows[0].runsInto).toBe(true);
-    expect(rows[2].pastEnd).toBe(true);
-    expect(rows[1].runsInto).toBeUndefined();
+  });
+
+  it('keeps a fixed item at its time when only finished work runs past it', () => {
+    const d = day(
+      [t('done', 90, { status: 'done', startedAt: 480, endedAt: 570 }), t('meet', 30, { kind: 'fixed', fixedAt: 540 })],
+      {
+        dayStarted: 480,
+      },
+    );
+    expect(schedule(d, 575).rows[1]).toMatchObject({ start: 540 });
+  });
+
+  it('flags items past wrap-up', () => {
+    const d = day([t('long', 60), t('late', 600)]);
+    expect(schedule(d, 500).rows[1].pastEnd).toBe(true);
   });
 
   it('gives skipped and not-started postponed items zero height', () => {

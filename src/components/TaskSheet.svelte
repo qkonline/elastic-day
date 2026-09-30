@@ -97,7 +97,7 @@
         {[
           isCheck ? 'No time' : dL(it.min),
           it.repeat !== 'Once' ? it.repeat : null,
-          v.fixedAt ? 'fixed ' + v.fixedAt : null,
+          v.fixedAt ? 'fixed ' + v.fixedAt + (v.fixedNow ? ', now ' + v.fixedNow : '') : null,
           it.kind === 'buffer' ? 'Buffer' : null,
         ]
           .filter(Boolean)
@@ -170,6 +170,11 @@
                 e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
             />
           </label>
+          {#if v.fixedNow}
+            <span class="moved-note">
+              The tasks before it run past {v.fixedAt}, so it starts at {v.fixedNow}.
+            </span>
+          {/if}
         {/if}
       </div>
       {#if it.kind !== 'buffer'}
@@ -449,6 +454,11 @@
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
+  }
+  .moved-note {
+    font: 400 13px/1.45 var(--font);
+    color: var(--muted);
+    text-wrap: pretty;
   }
   .time {
     height: 40px;

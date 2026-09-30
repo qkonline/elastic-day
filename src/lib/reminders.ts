@@ -2,7 +2,8 @@
 // in the background. The page writes those alerts to IndexedDB when it goes into the
 // background and books one push per group; src/sw.js shows each group when its push arrives.
 
-import { atMinutes } from './time';
+import { schedule } from './schedule';
+import { atMinutes, minutesInto } from './time';
 import type { Day, Item } from './types';
 
 /** A fixed-time task that's coming up. Times are epoch ms. */
@@ -10,23 +11,28 @@ export interface HeadsUp {
   /** Stays the same when an unsaved day is rebuilt (its tasks get new ids). */
   tag: string;
   it: Item;
+  /** When it starts in the plan, in minutes into its day: its set time, or later if it has moved. */
+  start: number;
   /** When to give the heads-up. */
   at: number;
   /** When the task is due to start. */
   startsAt: number;
 }
 
-/** Heads-ups for the fixed-time tasks still to do on these days, `lead` minutes before each. */
-export function headsUps(days: Day[], lead: number): HeadsUp[] {
+/**
+ * Heads-ups for the fixed-time tasks still to do on these days, `lead` minutes before each
+ * starts in the plan (later than its set time when the tasks before it don't fit).
+ */
+export function headsUps(days: Day[], lead: number, now: number): HeadsUp[] {
   if (!(lead > 0)) return [];
   const out: HeadsUp[] = [];
   for (const d of days) {
     // Nothing left to remind about once a day has ended.
     if (d.dayEnded != null) continue;
-    for (const it of d.items) {
+    for (const { it, start } of schedule(d, minutesInto(d.key, now)).rows) {
       if (it.kind !== 'fixed' || it.status !== 'todo' || it.fixedAt == null) continue;
-      const startsAt = atMinutes(d.key, it.fixedAt);
-      out.push({ tag: `fixed-${d.key}-${it.seriesId ?? it.id}`, it, at: startsAt - lead * 60000, startsAt });
+      const startsAt = atMinutes(d.key, start);
+      out.push({ tag: `fixed-${d.key}-${it.seriesId ?? it.id}`, it, start, at: startsAt - lead * 60000, startsAt });
     }
   }
   return out.sort((a, b) => a.at - b.at);

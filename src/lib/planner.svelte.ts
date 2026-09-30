@@ -128,12 +128,7 @@ export class Planner {
    * The viewed day as the plan sees it. With a flexible start, today's plan (until the day is
    * started) runs from now for the usual day length.
    */
-  planDay: Day = $derived.by(() => {
-    const d = this.day;
-    if (!this.settings.flexStart || !this.isToday || d.dayStarted != null) return d;
-    const start = Math.ceil(this.n / 5) * 5;
-    return { ...d, dayStart: start, wrap: start + this.settings.dayLength };
-  });
+  planDay: Day = $derived(this.planOf(this.day));
   sch = $derived(schedule(this.planDay, this.n));
   /** First visit: show the welcome until it's been completed or skipped. */
   showWelcome = $derived(this.ready && !this.settings.onboarded);
@@ -260,11 +255,22 @@ export class Planner {
   /** Fixed-time tasks on Today and the day after (for the small hours), with their heads-up times. */
   private headsUps(): HeadsUp[] {
     const days = [this.today, addDays(this.today, 1)].map((k) => this.days[k]).filter(Boolean);
-    return headsUps(days, this.settings.fixedLead);
+    return headsUps(
+      days.map((d) => this.planOf(d)),
+      this.settings.fixedLead,
+      this.clock,
+    );
+  }
+
+  /** A day as the plan sees it: with a flexible start, today's plan runs from now until it's started. */
+  private planOf(d: Day): Day {
+    if (!this.settings.flexStart || d.key !== this.today || d.dayStarted != null) return d;
+    const start = Math.ceil(minutesInto(d.key, this.clock) / 5) * 5;
+    return { ...d, dayStart: start, wrap: start + this.settings.dayLength };
   }
 
   private headsUpNote(h: HeadsUp): Note {
-    return { title: `Coming up at ${fT(h.it.fixedAt!, this.settings.clock24)}`, body: h.it.title, tag: h.tag };
+    return { title: `Coming up at ${fT(h.start, this.settings.clock24)}`, body: h.it.title, tag: h.tag };
   }
 
   dismissHeadsUp(h: HeadsUp): void {
@@ -605,7 +611,7 @@ export class Planner {
     this.celebrate = { kind: 'end', stats: dayStats(d, n), moved: copies.length };
     if (copies.length) {
       const next = await this.ensureDay(addDays(key, 1));
-      this.put({ ...next, items: [...next.items, ...copies] });
+      this.put(copies.reduce((day, c) => A.addItem(day, c), next));
     }
     this.say(copies.length ? `Day ended; ${copies.length} moved to tomorrow` : 'Day ended');
     this.tick(); // past midnight, Today moves on to the new date
@@ -768,7 +774,7 @@ export class Planner {
     this.confirm = null;
     this.put(res.day);
     const target = await this.ensureDay(key);
-    this.put(A.addItem(target, res.copy));
+    this.put(A.addItem(target, res.copy, minutesInto(key, this.clock)));
     if (this.viewKey !== src) return;
     this.say(msg ?? `${res.copy.title} moved to ${shortDate(keyDate(key))}`);
   }
@@ -783,7 +789,7 @@ export class Planner {
       fixedAt: o.kind === 'fixed' ? o.fixedAt : null,
     });
     this.sheet = null;
-    this.update((d) => A.addItem(d, it), `Added ${it.title}`);
+    this.update((d) => A.addItem(d, it, this.n), `Added ${it.title}`);
     // A repeating task becomes a series straight away, like choosing a repeat in the task sheet.
     if (repeat && repeat !== 'Once') void this.setRepeat(it.id, repeat);
     if (it.kind === 'fixed') this.offerNotifications('fixed');
@@ -793,14 +799,18 @@ export class Planner {
   edit(id: string, patch: Partial<Item>): void {
     const it = this.item(id);
     if (!it) return;
-    this.update((d) => A.patchItem(d, id, patch));
+    // A new time puts a fixed item where that time falls in the plan.
+    this.update((d) => {
+      const next = A.patchItem(d, id, patch);
+      return 'fixedAt' in patch ? A.placeFixed(next, id, this.n) : next;
+    });
     if (it.seriesId && Object.keys(patch).some((k) => SERIES_FIELDS.includes(k as keyof Item)))
       this.queueSeriesSync(it.seriesId, this.viewKey);
   }
 
   setKind(id: string, k: Kind): void {
     const it = this.item(id);
-    this.update((d) => A.setKind(d, id, k));
+    this.update((d) => A.placeFixed(A.setKind(d, id, k), id, this.n));
     if (it?.seriesId) this.queueSeriesSync(it.seriesId, this.viewKey);
     if (k === 'fixed') this.offerNotifications('fixed');
   }
