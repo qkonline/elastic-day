@@ -2,19 +2,23 @@
   import { cubicOut } from 'svelte/easing';
   import { slide } from 'svelte/transition';
   import { planner as P } from '../lib/planner.svelte';
-  import { clockToDay, hhmm, hm, keyDate, shortDate, weekdayLong } from '../lib/time';
+  import { clockToDay, fT, hhmm, hm, keyDate, shortDate, weekdayLong } from '../lib/time';
   import type { Hue, Kind } from '../lib/types';
   import { reducedMotion } from '../lib/ui.svelte';
-  import Fields, { KINDS } from './Fields.svelte';
+  import Fields from './Fields.svelte';
+  import KindChips from './KindChips.svelte';
   import SwitchRow from './SwitchRow.svelte';
 
   // The name, type and colour are always shown. Timing and repeating are optional, each behind
-  // a switch that opens its choices in place. Without timing, a task is a check: ticked off on
-  // the checklist instead of timed.
+  // a switch that opens its choices in place. Timing starts off: without it, a task is a check,
+  // ticked off on the checklist instead of timed.
   let title = $state('');
   let kind = $state<Kind>('task');
   let hue = $state<Hue | null>(null);
-  let timed = $state(true);
+  // Buffers and fixed times always take time. For a task it's the Timed switch, so trying
+  // Buffer and going back to Task leaves the switch as it was.
+  let timedTask = $state(false);
+  const timed = $derived(kind !== 'task' || timedTask);
   let min = $state(30);
   let repeats = $state(false);
   let repeat = $state('Every day');
@@ -30,21 +34,17 @@
   const placeholder = $derived(P.isToday ? 'What else today?' : `What else on ${shortDate(keyDate(P.viewKey))}?`);
   const unfold = () => ({ duration: reducedMotion.current ? 0 : 220, easing: cubicOut });
 
-  // Buffers and fixed items always take time, so picking one turns timing on, and turning
-  // timing off makes it a plain task.
-  function setKind(k: Kind) {
-    kind = k;
-    if (k !== 'task') timed = true;
-  }
+  // Turning timing off makes it a plain task.
   function setTimed(on: boolean) {
-    timed = on;
+    timedTask = on;
     if (!on) kind = 'task';
   }
+  const fixedAtPicked = $derived(fixedStr ? clockToDay(hm(fixedStr), late) : defaultFixed);
 
   function add() {
     if (!ok) return;
     const k = timed ? kind : 'check';
-    const fixedAt = k === 'fixed' ? (fixedStr ? clockToDay(hm(fixedStr), late) : defaultFixed) : null;
+    const fixedAt = k === 'fixed' ? fixedAtPicked : null;
     P.addTask({
       title: title.trim(),
       min: timed ? Math.max(1, min) : 0,
@@ -72,12 +72,7 @@
   />
 
   <div class="group">
-    <span class="label">Type</span>
-    <div class="row">
-      {#each KINDS as [k, l] (k)}
-        <button class="chip" aria-pressed={kind === k} onclick={() => setKind(k)}>{l}</button>
-      {/each}
-    </div>
+    <KindChips {kind} {hue} onpick={(k) => (kind = k)} />
     {#if kind === 'fixed'}
       <label class="at" transition:slide={unfold()}>
         <span>At</span>
@@ -95,7 +90,11 @@
   <div class="props">
     <SwitchRow
       label="Timed"
-      note={timed ? 'Start, pause and finish it with a timer' : 'No timer, just a box to tick'}
+      note={!timed
+        ? 'No timer, just a box to tick'
+        : kind === 'buffer'
+          ? 'How much time it keeps free'
+          : 'Start, pause and finish it with a timer'}
       on={timed}
       ontoggle={() => setTimed(!timed)}
     >
@@ -120,7 +119,7 @@
     {!timed
       ? 'Goes on your checklist, above the timeline.'
       : kind === 'fixed'
-        ? 'Sits at its set time; the rest of the day flows around it.'
+        ? `Goes in the plan at ${fT(fixedAtPicked, P.settings.clock24)}.`
         : 'Goes to the end of the day. Drag it to reorder.'}
   </span>
   <button class="cancel" onclick={() => P.closeSheet()}>Cancel</button>

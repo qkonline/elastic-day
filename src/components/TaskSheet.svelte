@@ -5,7 +5,9 @@
   import { clockToDay, dL, hhmm, hm, keyDate, weekdayLong } from '../lib/time';
   import DisarmBar from './DisarmBar.svelte';
   import type { Kind } from '../lib/types';
-  import Fields, { KINDS } from './Fields.svelte';
+  import Fields from './Fields.svelte';
+  import KindChips from './KindChips.svelte';
+  import KindMark from './KindMark.svelte';
   import PostponeChooser from './PostponeChooser.svelte';
   import StepBox from './StepBox.svelte';
   import SwitchRow from './SwitchRow.svelte';
@@ -88,10 +90,7 @@
 {#if v && it}
   <div class="head">
     <span class="icon" aria-hidden="true">
-      <span
-        style:background={it.kind === 'buffer' ? 'transparent' : v.hue}
-        style:border={it.kind === 'buffer' ? '1.5px dashed var(--faint)' : 'none'}
-      ></span>
+      <KindMark kind={it.kind} hue={it.hue} size={16} />
     </span>
     <div class="ht">
       <span class="summary">
@@ -158,14 +157,7 @@
 
     <div class="card">
       <div class="group">
-        <span class="label">Type</span>
-        <div class="row">
-          {#each KINDS as [k, l] (k)}
-            <button class="chip" aria-pressed={(isCheck ? 'task' : it.kind) === k} onclick={() => pickKind(k)}
-              >{l}</button
-            >
-          {/each}
-        </div>
+        <KindChips kind={isCheck ? 'task' : it.kind} hue={it.hue} onpick={pickKind} />
         {#if it.kind === 'fixed'}
           <label class="at">
             <span>At</span>
@@ -199,7 +191,9 @@
           ? 'Stop the timer to change this'
           : isCheck
             ? 'No timer, just a box to tick'
-            : 'Start, pause and finish it with a timer'}
+            : it.kind === 'buffer'
+              ? 'How much time it keeps free'
+              : 'Start, pause and finish it with a timer'}
         on={!isCheck}
         disabled={v.active}
         ontoggle={() => setDuration(isCheck ? lastMin : 0)}
@@ -320,16 +314,11 @@
     border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--raised);
+    color: var(--muted);
     display: flex;
     align-items: center;
     justify-content: center;
     flex: none;
-    box-sizing: border-box;
-  }
-  .icon span {
-    width: 14px;
-    height: 14px;
-    border-radius: 99px;
     box-sizing: border-box;
   }
   .ht {

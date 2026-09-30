@@ -1,10 +1,5 @@
 <script lang="ts" module>
   export const PICKS = [15, 30, 45, 60, 90, 120];
-  export const KINDS: [import('../lib/types').Kind, string][] = [
-    ['task', 'Task'],
-    ['buffer', 'Buffer'],
-    ['fixed', 'Fixed time'],
-  ];
 
   const range = (from: number, to: number, step = 1) =>
     Array.from({ length: Math.floor((to - from) / step) + 1 }, (_, i) => from + i * step);
