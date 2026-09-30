@@ -120,8 +120,8 @@ export class Planner {
   isToday = $derived(this.viewKey === this.today);
   /** Ticking a check or starting a timer waits for Start my day. Earlier days are history and never wait. */
   waiting = $derived(this.day.dayStarted == null && this.viewKey >= this.today);
-  /** Shown after tapping a check or a Start button before the day has started. */
-  nudge = $state<{ text: string; canStart: boolean; at: number } | null>(null);
+  /** Shown after tapping a check or a Start button before the day has started (Start my day answers it). */
+  nudge = $state<{ text: string; at: number } | null>(null);
   /** Now, in minutes since midnight of the viewed day. */
   n = $derived(minutesInto(this.viewKey, this.clock));
   /**
@@ -562,7 +562,7 @@ export class Planner {
       : what === 'check'
         ? 'Start your day first, then tick it off.'
         : 'Start your day first, then start the timer.';
-    this.nudge = { text, canStart: this.isToday, at: Date.now() };
+    this.nudge = { text, at: Date.now() };
     this.say(text);
   }
 

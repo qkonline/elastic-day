@@ -224,10 +224,10 @@ describe('Planner', () => {
     expect(byTitle(p, 'Vitamins').status).toBe('todo');
   });
 
-  it('asks to start the day first, with the button to do it, until it goes by itself', async () => {
+  it('asks to start the day first, until it goes by itself', async () => {
     const p = await boot();
     p.askToStartDay('check');
-    expect(p.nudge).toMatchObject({ text: 'Start your day first, then tick it off.', canStart: true });
+    expect(p.nudge?.text).toBe('Start your day first, then tick it off.');
     expect(p.announce).toBe('Start your day first, then tick it off.');
     p.askToStartDay('timer');
     expect(p.nudge?.text).toBe('Start your day first, then start the timer.');
@@ -240,7 +240,7 @@ describe('Planner', () => {
 
     await p.switchDay(TOMORROW);
     p.askToStartDay('check');
-    expect(p.nudge).toMatchObject({ canStart: false, text: "This day hasn't started yet. Tick it off once it has." });
+    expect(p.nudge?.text).toBe("This day hasn't started yet. Tick it off once it has.");
   });
 
   it('lets checks on earlier days be ticked off, started or not', async () => {
