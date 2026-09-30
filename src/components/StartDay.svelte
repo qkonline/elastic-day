@@ -4,12 +4,11 @@
   import { planner as P } from '../lib/planner.svelte';
   import { reducedMotion } from '../lib/ui.svelte';
 
-  // Today's plan waits here until the day is started; the tasks' own Start buttons stay off
-  // until then. Once pressed, the row folds away and the tasks slide up into its place.
+  // Today's plan waits here until the day is started; the tasks' Start buttons and the
+  // checklist stay off until then (so a day of only checks needs it too). Once pressed, the row
+  // folds away and the tasks slide up into its place.
   const show = $derived(
-    P.isToday &&
-      P.day.dayStarted == null &&
-      P.day.items.some((i) => i.status === 'todo' && i.kind !== 'buffer' && i.kind !== 'check'),
+    P.isToday && P.day.dayStarted == null && P.day.items.some((i) => i.status === 'todo' && i.kind !== 'buffer'),
   );
   const fold = () => ({ duration: reducedMotion.current ? 0 : 280, easing: cubicOut });
 </script>

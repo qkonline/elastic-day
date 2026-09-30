@@ -14,7 +14,7 @@
   const id = $derived(v.id);
   const it = $derived(v.it);
   const lifted = $derived(!!P.drag && P.drag.id === id);
-  // Tasks can only be started once "Start my day" has been pressed.
+  // Tasks can only be started once "Start my day" has been pressed; tapping Start before then says so.
   const dayStarted = $derived(P.day.dayStarted != null);
   const hovered = $derived(desktop.current && P.hover === id);
   const postponeArmed = $derived(P.armed('postpone', id));
@@ -150,11 +150,11 @@
         class="start"
         style:border-color={v.hue}
         aria-label="Start {it.title}"
-        disabled={!dayStarted}
-        title={dayStarted ? undefined : 'Start your day first'}
+        aria-disabled={!dayStarted}
         onclick={(e) => {
           e.stopPropagation();
-          P.startItem(id);
+          if (dayStarted) P.startItem(id);
+          else P.askToStartDay('timer');
         }}>Start</button
       >
     {/if}
@@ -436,7 +436,7 @@
     font: 400 14px/1 var(--font);
     cursor: pointer;
   }
-  .start:disabled {
+  .start[aria-disabled='true'] {
     opacity: 0.4;
     cursor: not-allowed;
   }

@@ -71,6 +71,8 @@ export interface Drag {
 }
 
 export const CONFIRM_MS = 10_000;
+/** How long the "start your day first" message stays up. */
+export const NUDGE_MS = 6000;
 const SAVE_DELAY = 250;
 const SERIES_DELAY = 500;
 /** How far back to look for a timer left running on an earlier day. */
@@ -116,6 +118,10 @@ export class Planner {
 
   day: Day = $derived(this.days[this.viewKey] ?? this.blankDay(this.viewKey));
   isToday = $derived(this.viewKey === this.today);
+  /** Ticking a check or starting a timer waits for Start my day. Earlier days are history and never wait. */
+  waiting = $derived(this.day.dayStarted == null && this.viewKey >= this.today);
+  /** Shown after tapping a check or a Start button before the day has started. */
+  nudge = $state<{ text: string; canStart: boolean; at: number } | null>(null);
   /** Now, in minutes since midnight of the viewed day. */
   n = $derived(minutesInto(this.viewKey, this.clock));
   /**
@@ -275,6 +281,7 @@ export class Planner {
     const tk = activeDayKey(todayKey(), this.days, this.clock);
     if (tk !== this.today) this.rollover(tk);
     if (this.confirm && Date.now() - this.confirm.at > CONFIRM_MS) this.confirm = null;
+    if (this.nudge && Date.now() - this.nudge.at > NUDGE_MS) this.nudge = null;
     for (const d of Object.values(this.days)) {
       for (const it of d.items) {
         if (it.status !== 'running') continue;
@@ -490,6 +497,7 @@ export class Planner {
     this.viewKey = key;
     this.sheet = null;
     this.confirm = null;
+    this.nudge = null;
     this.resched = null;
     this.drag = null;
     this.hover = null;
@@ -515,6 +523,7 @@ export class Planner {
     this.fixBlankTitle();
     this.sheet = s;
     this.confirm = null;
+    this.nudge = null;
     this.importMsg = null;
     if (s.type === 'add') this.resched = null;
   }
@@ -546,8 +555,20 @@ export class Planner {
 
   // ---------- timer ----------
 
+  /** A check or a Start button was tapped before the day started: say to start it first. */
+  askToStartDay(what: 'check' | 'timer'): void {
+    const text = !this.isToday
+      ? "This day hasn't started yet. Tick it off once it has."
+      : what === 'check'
+        ? 'Start your day first, then tick it off.'
+        : 'Start your day first, then start the timer.';
+    this.nudge = { text, canStart: this.isToday, at: Date.now() };
+    this.say(text);
+  }
+
   startDay(): void {
     unlockAudio();
+    this.nudge = null;
     const n = this.n;
     const timed = (i: Item) => i.status === 'todo' && i.kind !== 'buffer' && i.kind !== 'check';
     const first = this.day.items.find((i) => timed(i) && i.kind === 'task') ?? this.day.items.find(timed);
@@ -598,7 +619,7 @@ export class Planner {
   /** Tick a check off, or untick it. Ticking waits for the day to start, like Start does. */
   toggleCheck(id: string): void {
     const it = this.item(id);
-    if (!it || (it.status !== 'done' && this.day.dayStarted == null)) return;
+    if (!it || (it.status !== 'done' && this.waiting)) return;
     this.update((d) => A.toggleCheck(d, id, this.n), `${it.title} ${it.status === 'done' ? 'not done' : 'done'}`);
   }
 
@@ -619,6 +640,7 @@ export class Planner {
     unlockAudio();
     this.alerted.delete(id);
     this.confirm = null;
+    this.nudge = null;
     this.finishElsewhere();
     const n = this.n;
     this.update((d) => {

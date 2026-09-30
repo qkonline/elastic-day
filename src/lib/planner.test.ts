@@ -224,6 +224,34 @@ describe('Planner', () => {
     expect(byTitle(p, 'Vitamins').status).toBe('todo');
   });
 
+  it('asks to start the day first, with the button to do it, until it goes by itself', async () => {
+    const p = await boot();
+    p.askToStartDay('check');
+    expect(p.nudge).toMatchObject({ text: 'Start your day first, then tick it off.', canStart: true });
+    expect(p.announce).toBe('Start your day first, then tick it off.');
+    p.askToStartDay('timer');
+    expect(p.nudge?.text).toBe('Start your day first, then start the timer.');
+    vi.setSystemTime(new Date(2026, 8, 25, 10, 0, 7));
+    p.tick();
+    expect(p.nudge).toBeNull();
+    p.askToStartDay('check');
+    p.startDay();
+    expect(p.nudge).toBeNull();
+
+    await p.switchDay(TOMORROW);
+    p.askToStartDay('check');
+    expect(p.nudge).toMatchObject({ canStart: false, text: "This day hasn't started yet. Tick it off once it has." });
+  });
+
+  it('lets checks on earlier days be ticked off, started or not', async () => {
+    const p = await boot();
+    await p.switchDay('2026-09-24');
+    p.addTask({ title: 'Vitamins', min: 0, kind: 'check', hue: 'lime', fixedAt: null });
+    expect(p.waiting).toBe(false);
+    p.toggleCheck(byTitle(p, 'Vitamins').id);
+    expect(byTitle(p, 'Vitamins').status).toBe('done');
+  });
+
   it('keeps a late night on the day it started, until the day is ended', async () => {
     vi.setSystemTime(new Date(2026, 8, 25, 22, 0));
     const p = await boot();

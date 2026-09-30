@@ -17,6 +17,7 @@
   import ReorderAsk from './components/ReorderAsk.svelte';
   import RunningElsewhere from './components/RunningElsewhere.svelte';
   import StartDay from './components/StartDay.svelte';
+  import StartFirst from './components/StartFirst.svelte';
   import Settings from './components/Settings.svelte';
   import Sheet from './components/Sheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
@@ -154,6 +155,7 @@
     </main>
   </div>
   <PullIndicator />
+  <StartFirst />
 
   <button class="fab" aria-label="Add task" inert={covered} onclick={() => P.openSheet({ type: 'add' })}>
     <span class="plus">+</span><span>Add task</span>

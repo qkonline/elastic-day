@@ -281,7 +281,7 @@
           /></svg
         >
       </button>
-      {#if isCheck && v.s === 'todo' && P.day.dayStarted == null}
+      {#if isCheck && v.s === 'todo' && P.waiting}
         <button class="ctl" disabled>Tick off once your day starts</button>
       {:else if isCheck}
         <button class="ctl" class:done={v.s !== 'done'} onclick={() => P.toggleCheck(id)}
