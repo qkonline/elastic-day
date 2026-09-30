@@ -1,6 +1,7 @@
 // IndexedDB persistence. One record per day (keyed 'YYYY-MM-DD'), one per repeating series,
-// and a single settings record. Everything stays in this browser.
+// and in `meta` the settings and the booked notifications. Everything stays in this browser.
 
+import type { AlertGroup } from './reminders';
 import type { Day, Series, Settings } from './types';
 
 const DB_NAME = 'elastic-day';
@@ -95,6 +96,11 @@ export async function getSettings(): Promise<Partial<Settings> | undefined> {
 
 export async function putSettings(s: Settings): Promise<void> {
   await done((await store('meta', 'readwrite')).put(plain(s), 'settings'));
+}
+
+/** The notifications booked with the push worker, for the service worker to show (see reminders.ts). */
+export async function putAlerts(groups: AlertGroup[]): Promise<void> {
+  await done((await store('meta', 'readwrite')).put(plain({ groups }), 'alerts'));
 }
 
 /** Replace everything in one transaction (Import) or wipe it (Erase everything). */

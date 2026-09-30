@@ -5,6 +5,7 @@
   import AddTask from './components/AddTask.svelte';
   import Celebration from './components/Celebration.svelte';
   import Checklist from './components/Checklist.svelte';
+  import ComingUp from './components/ComingUp.svelte';
   import DayFooter from './components/DayFooter.svelte';
   import DayHours from './components/DayHours.svelte';
   import DayStatus from './components/DayStatus.svelte';
@@ -126,6 +127,7 @@
     <WeekStrip />
     <StartDay />
     <RunningElsewhere />
+    <ComingUp />
     <NotifyPrompt />
     <main
       class:settling={!gestures.dragging}

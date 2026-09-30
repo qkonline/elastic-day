@@ -7,6 +7,7 @@ import { download, parseBackup } from './backup';
 import * as db from './db';
 import { hasNotifications, needsInstallForNotifications } from './platform';
 import { cancelPush, preparePush, schedulePush, unsubscribePush } from './push';
+import { type HeadsUp, headsUps, type Note, pushPlan } from './reminders';
 import {
   materialize,
   orderAt,
@@ -15,6 +16,7 @@ import {
   placeBySeries,
   seriesFromItem,
   syncSeriesInto,
+  withoutSeries,
 } from './repeat';
 import { sampleItems } from './sample';
 import { dayStats, type DayStats, isActive, schedule, worked } from './schedule';
@@ -107,8 +109,10 @@ export class Planner {
   hover = $state<string | null>(null);
   announce = $state('');
   importMsg = $state<{ err: boolean; t: string } | null>(null);
-  /** The "get notified when time's up?" card, offered when a timer starts. */
-  notifyPrompt = $state<'ask' | 'blocked' | null>(null);
+  /** The "get notified?" card, offered when a timer starts or a task gets a fixed time. */
+  notifyPrompt = $state<'timer' | 'fixed' | 'blocked' | null>(null);
+  /** Heads-ups closed from the banner. */
+  private dismissedHeadsUps = $state.raw<string[]>([]);
 
   day: Day = $derived(this.days[this.viewKey] ?? this.blankDay(this.viewKey));
   isToday = $derived(this.viewKey === this.today);
@@ -138,6 +142,15 @@ export class Planner {
     }
     return null;
   });
+  /** The fixed-time task whose heads-up is due, until it starts (Today or the day after). */
+  comingUp: HeadsUp | null = $derived.by(() => {
+    const now = this.clock;
+    return (
+      this.headsUps().find(
+        (h) => h.at <= now && now < h.startsAt && !this.dismissedHeadsUps.includes(h.tag + h.startsAt),
+      ) ?? null
+    );
+  });
   weekKeys = $derived.by(() => {
     const mon = addDays(mondayOf(this.today), this.weekOff * 7);
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i));
@@ -152,6 +165,8 @@ export class Planner {
   private iv: ReturnType<typeof setInterval> | null = null;
   private nav = 0;
   private pushScheduled = false;
+  /** Heads-ups due after this moment still need their chime (earlier ones had it, or were missed). */
+  private remindFrom = Date.now();
 
   // ---------- lifecycle ----------
 
@@ -171,10 +186,12 @@ export class Planner {
       await this.ensureDay(this.today);
       await this.fillSeriesOrder();
       await this.loadWeek();
+      await this.ensureDay(addDays(this.today, 1)); // for heads-ups past midnight
       if (!s && (this.stored.size || series.length)) this.setSettings({ onboarded: true });
       // Anything already over time when the page loads has had its alert.
       for (const d of Object.values(this.days))
         for (const it of d.items) if (isActive(it) && worked(it, minutesInto(d.key)) >= it.min) this.alerted.add(it.id);
+      this.remindFrom = Date.now();
       this.ready = true;
     } catch (e) {
       this.failed = e instanceof Error ? e.message : String(e);
@@ -197,28 +214,55 @@ export class Planner {
     document.addEventListener('visibilitychange', () => (document.hidden ? this.onHidden() : this.onVisible()));
   }
 
-  /** Going into the background: save, and have the push worker ring at time's up. */
+  /**
+   * Going into the background: save, and have the push worker ring at time's up and before
+   * fixed times. What each push should say is stored for the service worker.
+   */
   private onHidden(): void {
     void this.flush();
-    const at = this.settings.notify ? this.timeUpAt() : null;
-    if (at) this.pushScheduled = schedulePush(at);
+    if (!this.settings.notify) return;
+    const plan = pushPlan(this.alerts(), Date.now());
+    void db.putAlerts(plan).catch(() => {});
+    this.pushScheduled = schedulePush(plan.map((g) => g.at));
   }
 
   private onVisible(): void {
-    if (this.pushScheduled) cancelPush();
+    if (this.pushScheduled) {
+      cancelPush();
+      // Heads-ups that came as a notification while away don't chime again on the way back.
+      this.remindFrom = Date.now();
+    }
     this.pushScheduled = false;
     this.tick();
   }
 
-  /** When the running timer (on any loaded day) reaches zero, in epoch ms; null if none is due. */
-  private timeUpAt(): number | null {
+  /** Notifications still to come: the running timer's time's up, and heads-ups before fixed times. */
+  private alerts(): { at: number; note: Note }[] {
+    const now = Date.now();
+    const out: { at: number; note: Note }[] = [];
     for (const d of Object.values(this.days)) {
       const it = d.items.find((i) => i.status === 'running');
       if (!it || this.alerted.has(it.id)) continue;
-      const left = it.min - worked(it, minutesInto(d.key, this.clock));
-      if (left > 0) return this.clock + left * 60000;
+      const left = it.min - worked(it, minutesInto(d.key, now));
+      if (left > 0)
+        out.push({ at: now + left * 60000, note: { title: "Time's up", body: it.title, tag: 'timer-' + it.id } });
     }
-    return null;
+    for (const h of this.headsUps()) out.push({ at: h.at, note: this.headsUpNote(h) });
+    return out;
+  }
+
+  /** Fixed-time tasks on Today and the day after (for the small hours), with their heads-up times. */
+  private headsUps(): HeadsUp[] {
+    const days = [this.today, addDays(this.today, 1)].map((k) => this.days[k]).filter(Boolean);
+    return headsUps(days, this.settings.fixedLead);
+  }
+
+  private headsUpNote(h: HeadsUp): Note {
+    return { title: `Coming up at ${fT(h.it.fixedAt!, this.settings.clock24)}`, body: h.it.title, tag: h.tag };
+  }
+
+  dismissHeadsUp(h: HeadsUp): void {
+    this.dismissedHeadsUps = [...this.dismissedHeadsUps, h.tag + h.startsAt];
   }
 
   destroy(): void {
@@ -252,6 +296,21 @@ export class Planner {
         if (this.settings.notify && !this.pushScheduled) notifyHidden("Time's up", it.title, 'timer-' + it.id);
       }
     }
+    // A heads-up rings once, as its time passes, and not once the task is due to start. With a
+    // push booked, the push brings it.
+    const from = this.remindFrom;
+    this.remindFrom = this.clock;
+    if (this.pushScheduled) return;
+    for (const h of this.headsUps()) {
+      if (h.at <= from || h.at > this.clock || this.clock >= h.startsAt) continue;
+      const note = this.headsUpNote(h);
+      this.say(`${note.title}: ${note.body}`);
+      if (this.settings.alertOn) {
+        chime([1175]);
+        vibrate(180);
+      }
+      if (this.settings.notify) notifyHidden(note.title, note.body, note.tag);
+    }
   }
 
   /** Midnight passed with the app open. Follow it to the new day unless a timer is running. */
@@ -259,7 +318,9 @@ export class Planner {
     const old = this.today;
     this.today = tk;
     this.weekOff = 0;
-    void this.ensureDay(tk).then(() => this.loadWeek());
+    void this.ensureDay(tk)
+      .then(() => this.loadWeek())
+      .then(() => this.ensureDay(addDays(tk, 1)));
     if (this.viewKey === old && !this.days[old]?.items.some(isActive)) void this.switchDay(tk);
   }
 
@@ -499,7 +560,7 @@ export class Planner {
       first ? `${first.title} started` : 'Day started',
     );
     this.celebrate = { kind: 'start', at: n, first: first?.title ?? null };
-    if (first) this.offerNotifications();
+    if (first) this.offerNotifications('timer');
   }
 
   /** "End my day", optionally moving what's left (one-off tasks and checks) to the next day. */
@@ -565,7 +626,7 @@ export class Planner {
       // as shown, so what it shows as missed stays missed.
       return { ...A.startItem(this.planDay, id, n), ...this.opening(d, n) };
     }, `${it.title} started`);
-    this.offerNotifications();
+    this.offerNotifications('timer');
   }
 
   /**
@@ -702,6 +763,7 @@ export class Planner {
     this.update((d) => A.addItem(d, it), `Added ${it.title}`);
     // A repeating task becomes a series straight away, like choosing a repeat in the task sheet.
     if (repeat && repeat !== 'Once') void this.setRepeat(it.id, repeat);
+    if (it.kind === 'fixed') this.offerNotifications('fixed');
   }
 
   /** Edit fields. Series fields on a repeating item also flow to later days not yet started. */
@@ -717,6 +779,7 @@ export class Planner {
     const it = this.item(id);
     this.update((d) => A.setKind(d, id, k));
     if (it?.seriesId) this.queueSeriesSync(it.seriesId, this.viewKey);
+    if (k === 'fixed') this.offerNotifications('fixed');
   }
 
   move(id: string, dir: -1 | 1): void {
@@ -731,6 +794,27 @@ export class Planner {
     if (this.sheet?.type === 'task' && this.sheet.id === id) this.sheet = null;
     this.confirm = null;
     this.update((d) => A.remove(d, id), it ? `Deleted ${it.title}` : undefined);
+  }
+
+  /** Delete a repeating task from this day and every later day: its series ends the day before. */
+  async removeWithLater(id: string): Promise<void> {
+    const it = this.item(id);
+    const s = it?.seriesId ? this.series.find((x) => x.id === it.seriesId) : undefined;
+    this.remove(id);
+    if (!it || !s) return;
+    const key = this.viewKey;
+    this.say(`Deleted ${it.title} from later days too`);
+    this.cancelSeriesSync(s.id);
+    const before = addDays(key, -1);
+    const ended = { ...s, until: s.until != null && s.until < before ? s.until : before };
+    this.series = this.series.map((x) => (x.id === s.id ? ended : x));
+    await db.putSeries(ended);
+    this.post({ t: 'series' });
+    for (const d of await this.laterDays(key)) {
+      const without = withoutSeries(d, s.id);
+      if (without !== d) this.put(without);
+    }
+    this.rebuildUnstored();
   }
 
   toggleSub(id: string, sid: string): void {
@@ -989,13 +1073,17 @@ export class Planner {
 
   // ---------- notifications ----------
 
-  /** After a timer starts, suggest notifications unless they're on, refused, or snoozed. */
-  private offerNotifications(): void {
+  /**
+   * After a timer starts or a task gets a fixed time, suggest notifications unless they're on,
+   * refused, or snoozed.
+   */
+  private offerNotifications(why: 'timer' | 'fixed'): void {
     const s = this.settings;
     if (s.notify || s.notifyAsk === 'never' || (s.notifyAskAfter && this.today < s.notifyAskAfter)) return;
     if (!hasNotifications() && !needsInstallForNotifications()) return;
     if (hasNotifications() && Notification.permission === 'denied') return;
-    this.notifyPrompt = 'ask';
+    if (why === 'fixed' && !s.fixedLead) return;
+    this.notifyPrompt = why;
   }
 
   /** The three answers on the suggestion card. */

@@ -22,16 +22,16 @@ Live at **[kaiserkhan.com/planner](https://kaiserkhan.com/planner/)**. It works 
 - **Idle time doesn't move the plan.** If nothing is running, planned times stay where they are, so the things you didn't get to show up as _missed_. Reschedule them (start now, later today, another day) or mark them done.
 - **Postpone.** Before a task starts, "Later today" moves it to the end of the list. Mid-task, the time you've put in stays logged and the rest becomes a new task, later today or tomorrow.
 - **Reorder by dragging.** Drag a task by its capsule (or press and hold its name on a phone); the other tasks slide aside to show where it will land. The task sheet has Earlier/Later buttons too.
-- **Repeating tasks.** Every day, weekdays, or one weekday. Editing a repeating task also updates later days you haven't started yet. Drag one past another repeating task and you choose whether that's just for today or for later days too.
+- **Repeating tasks.** Every day, weekdays, or one weekday. Editing a repeating task also updates later days you haven't started yet. Drag one past another repeating task, or delete one, and you choose whether that's just for today or for later days too.
 - **Other days** are for planning: the week strip lets you look ahead or back and move things between days. On a phone, swipe sideways to go to the next or previous day, and pull down from the top to refresh.
-- **Notifications.** The first time you start a timer, Elastic Day offers to notify you when time's up. You can turn that on, leave it for now (it asks again the next day), or tell it not to ask again. There's a switch in Settings either way.
+- **Notifications.** The first time you start a timer or give a task a fixed time, Elastic Day offers to notify you when time's up and a few minutes before fixed times. You can turn that on, leave it for now (it asks again the next day), or tell it not to ask again. There's a switch in Settings either way, and a choice of how early the heads-up comes (5, 10 or 15 minutes, or none). With the app open, the heads-up is a soft chime and a banner at the top.
 - **Install it.** Settings has an _Install_ button in browsers that support it (Chrome, Edge, Samsung Internet), and short instructions for Safari on iPhone, iPad and Mac. Installed, it opens from its own icon in its own window. On iPhone and iPad this is also what makes notifications possible.
 
 ## Your data
 
 There's no account. Your plan is saved in your browser (IndexedDB), on the device you're using, and never sent anywhere. Settings → _Your data_ exports a backup file and imports it again, which is also how you'd move your plan to another browser. Clearing the site's data deletes your plan, and Safari can clear it after a week without a visit unless the app is on your home screen, so export now and then.
 
-The one exception is notifications while the app is closed (see below): for those, the push service is told _when_ your timer runs out, and nothing else.
+The one exception is notifications while the app is closed (see below): for those, the push service is told _when_ to ring (your timer running out, a fixed time coming up), and nothing else.
 
 ## Development
 
@@ -81,7 +81,7 @@ A few rules the code sticks to:
 
 ## Notifications while the app is closed
 
-A web page can only ring while it's running, and phones pause pages as soon as they're locked or in the background. So when Elastic Day goes into the background with a timer running, it books a push with a small [Cloudflare Worker](worker/) for the moment time runs out, and cancels it when you come back. The push is empty: the app's service worker shows the notification and reads the task's name from the browser's own storage. The worker only ever holds a push address and a time.
+A web page can only ring while it's running, and phones pause pages as soon as they're locked or in the background. So when Elastic Day goes into the background, it books pushes with a small [Cloudflare Worker](worker/) for the moment a running timer runs out and for each heads-up before a fixed time, and cancels them when you come back. The pushes are empty: the app's service worker shows the notification and reads what to say from the browser's own storage. The worker only ever holds a push address and some times.
 
 Without the worker configured, notifications still work whenever the page is running (on a desktop, that includes background tabs).
 

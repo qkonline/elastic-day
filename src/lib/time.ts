@@ -103,6 +103,12 @@ export function minutesInto(key: string, nowMs = Date.now()): number {
   return (nowMs - midnight.getTime()) / 60000 + shift;
 }
 
+/** The moment (epoch ms) the clock shows minute `m` of day `key`: the other way round from minutesInto. */
+export function atMinutes(key: string, m: number): number {
+  const [Y, M, D] = key.split('-').map(Number);
+  return new Date(Y, M - 1, D, 0, 0, 0, Math.round(m * 60000)).getTime();
+}
+
 /**
  * A clock time (0–1439) typed for a day that reaches past midnight: small-hours times belong
  * to the night after it. `late` is how far the day reaches: its wrap-up, or now if later.

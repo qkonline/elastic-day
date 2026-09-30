@@ -37,6 +37,9 @@
     return list;
   });
   const repeating = $derived(!!it && it.repeat !== 'Once');
+  // Deleting asks about later days only while the task's series still has days after this one.
+  const series = $derived(it?.seriesId ? P.series.find((s) => s.id === it.seriesId) : undefined);
+  const repeatsLater = $derived(!!series && (series.until == null || series.until > P.viewKey));
 
   // The task can disappear underneath the sheet (cleared day, another tab): close it then.
   $effect(() => {
@@ -261,9 +264,17 @@
 
   <div class="foot">
     {#if delArmed}
-      <div class="confirm" role="group" aria-label="Confirm delete">
-        <span class="q">{repeating ? 'Delete it from this day? Other days keep it.' : 'Delete this task?'}</span>
-        <button class="btn-yes" onclick={() => P.remove(id)} {@attach (el) => el.focus()}>Delete</button>
+      <div class="confirm" class:choice={repeatsLater} role="group" aria-label="Confirm delete">
+        {#if repeatsLater}
+          <span class="q">Delete it just for {P.isToday ? 'today' : 'this day'}, or for later days too?</span>
+          <button class="btn-yes" onclick={() => P.remove(id)} {@attach (el) => el.focus()}
+            >{P.isToday ? 'Just today' : 'Just this day'}</button
+          >
+          <button class="btn-yes" onclick={() => P.removeWithLater(id)}>Later days too</button>
+        {:else}
+          <span class="q">Delete this task?</span>
+          <button class="btn-yes" onclick={() => P.remove(id)} {@attach (el) => el.focus()}>Delete</button>
+        {/if}
         <button class="btn-no" onclick={() => P.disarm()}>Cancel</button>
         <DisarmBar />
       </div>
@@ -564,6 +575,10 @@
   .q {
     flex: 1 1 160px;
     font: 400 14px/1.4 var(--font);
+  }
+  /* Just today / Later days too: the question on its own line, the choices in a row. */
+  .choice .q {
+    flex-basis: 100%;
   }
   .trash {
     width: 50px;

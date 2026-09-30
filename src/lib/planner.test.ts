@@ -101,6 +101,30 @@ describe('Planner', () => {
     expect(q.day.items).toEqual([]);
   });
 
+  it('deletes a repeating task from one day, or from later days too', async () => {
+    const p = await boot();
+    add(p, 'Gym', 45);
+    await p.setRepeat(byTitle(p, 'Gym').id, 'Every day');
+    await p.switchDay('2026-09-28'); // stored: it has another task
+    add(p, 'Monday thing');
+    await p.switchDay(TOMORROW);
+    p.remove(byTitle(p, 'Gym').id); // just this day
+    await p.flush();
+    expect(p.day.items).toEqual([]);
+    await p.switchDay('2026-09-27');
+    expect(p.day.items.map((i) => i.title)).toEqual(['Gym']);
+
+    await p.removeWithLater(byTitle(p, 'Gym').id);
+    await p.flush();
+    expect(p.day.items).toEqual([]);
+    expect((await db.getDay('2026-09-28'))?.items.map((i) => i.title)).toEqual(['Monday thing']);
+    expect(p.series[0].until).toBe(TOMORROW);
+    const q = await boot();
+    expect(q.day.items.map((i) => i.title)).toEqual(['Gym']); // earlier days keep it
+    await q.switchDay('2026-09-29');
+    expect(q.day.items).toEqual([]);
+  });
+
   it('pushes edits of a repeating item to later days not yet started', async () => {
     const p = await boot();
     add(p, 'Email', 45);

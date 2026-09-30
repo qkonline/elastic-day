@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBookableTime, isPushEndpoint } from './checks';
+import { bookableTimes, isBookableTime, isPushEndpoint } from './checks';
 import { b64url, fromB64url, vapidAuthorization } from './vapid';
 
 async function keys() {
@@ -55,5 +55,20 @@ describe('request checks', () => {
     expect(isBookableTime(now - 5 * 60_000, now)).toBe(false);
     expect(isBookableTime(now + 25 * 3600_000, now)).toBe(false);
     expect(isBookableTime('soon', now)).toBe(false);
+  });
+
+  it('books one time or a list of them, earliest first', () => {
+    const now = 1_790_000_000_000;
+    const [a, b] = [now + 60_000, now + 120_000];
+    expect(bookableTimes(a, now)).toEqual([a]);
+    expect(bookableTimes([b, a, b], now)).toEqual([a, b]);
+    expect(bookableTimes([], now)).toBeNull();
+    expect(bookableTimes([a, 'soon'], now)).toBeNull();
+    expect(
+      bookableTimes(
+        Array.from({ length: 21 }, (_, i) => a + i),
+        now,
+      ),
+    ).toBeNull();
   });
 });

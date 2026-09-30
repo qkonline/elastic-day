@@ -1,7 +1,7 @@
-// Time's-up notifications while the app is closed or the phone is locked. When the app goes
-// into the background with a timer running, it asks the push worker (worker/) to send an
-// empty push at the moment time runs out; the service worker then shows the notification,
-// reading the task's name from IndexedDB. Only the push address and a time leave the device.
+// Notifications while the app is closed or the phone is locked: time's up, and heads-ups before
+// fixed-time tasks. When the app goes into the background, it asks the push worker (worker/) to
+// send an empty push at each of those moments; the service worker then shows the notification,
+// reading what to say from IndexedDB. Only the push address and the times leave the device.
 
 const URL_ = import.meta.env.VITE_PUSH_URL?.replace(/\/$/, '');
 const KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
@@ -56,9 +56,9 @@ function send(path: string, body: object): void {
   }).catch(() => {});
 }
 
-/** Ask for a push at `at` (epoch ms). */
-export function schedulePush(at: number): boolean {
-  if (!endpoint || !URL_) return false;
+/** Ask for a push at each of these times (epoch ms), replacing any booked before. */
+export function schedulePush(at: number[]): boolean {
+  if (!endpoint || !URL_ || !at.length) return false;
   send('/schedule', { endpoint, at });
   return true;
 }

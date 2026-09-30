@@ -1,11 +1,12 @@
-// Elastic Day push worker. When the app goes into the background with a timer running, it
-// asks for a push at the moment time runs out; coming back to the front cancels it. Each
-// browser gets a Durable Object (keyed by its push address) holding that address and an
-// alarm. The push is empty: the app's service worker fills in the task from its own data,
-// so nothing about anyone's plan reaches this worker.
+// Elastic Day push worker. When the app goes into the background, it asks for a push at each
+// moment it wants to notify (time's up, heads-ups before fixed times); coming back to the front
+// cancels them. Each browser gets a Durable Object (keyed by its push address) holding that
+// address, the times and an alarm for the next one. The pushes are empty: the app's service
+// worker fills in what to say from its own data, so nothing about anyone's plan reaches this
+// worker.
 
 import { DurableObject } from 'cloudflare:workers';
-import { isBookableTime, isPushEndpoint } from './checks';
+import { bookableTimes, isPushEndpoint } from './checks';
 import { vapidAuthorization, type VapidKeys } from './vapid';
 
 export interface Env extends VapidKeys {
@@ -49,17 +50,19 @@ export default {
       await timer.cancel();
       return reply(204);
     }
-    if (!isBookableTime(body.at)) return reply(400);
-    await timer.book(body.endpoint, body.at);
+    const times = bookableTimes(body.at);
+    if (!times) return reply(400);
+    await timer.book(body.endpoint, times);
     return reply(204);
   },
 } satisfies ExportedHandler<Env>;
 
-/** One per browser: the pending time's-up push for that browser, if any. */
+/** One per browser: the pushes booked for that browser, if any. */
 export class Timer extends DurableObject<Env> {
-  async book(endpoint: string, at: number): Promise<void> {
-    await this.ctx.storage.put('endpoint', endpoint);
-    await this.ctx.storage.setAlarm(Math.max(at, Date.now()));
+  /** Replaces whatever was booked before. `times` is sorted, earliest first. */
+  async book(endpoint: string, times: number[]): Promise<void> {
+    await this.ctx.storage.put({ endpoint, times });
+    await this.ctx.storage.setAlarm(Math.max(times[0], Date.now()));
   }
 
   async cancel(): Promise<void> {
@@ -69,7 +72,12 @@ export class Timer extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     const endpoint = await this.ctx.storage.get<string>('endpoint');
-    await this.ctx.storage.deleteAll();
+    // Book the next one before sending this one. (Bookings from before lists had no times.)
+    const rest = ((await this.ctx.storage.get<number[]>('times')) ?? []).slice(1);
+    if (rest.length && endpoint) {
+      await this.ctx.storage.put('times', rest);
+      await this.ctx.storage.setAlarm(Math.max(rest[0], Date.now()));
+    } else await this.ctx.storage.deleteAll();
     if (!endpoint) return;
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -79,7 +87,8 @@ export class Timer extends DurableObject<Env> {
         urgency: 'high',
       },
     });
-    // 404/410: the browser dropped its subscription; nothing to do.
-    if (!res.ok && res.status !== 404 && res.status !== 410) console.warn('push failed', res.status, await res.text());
+    // 404/410: the browser dropped its subscription, so the rest can go too.
+    if (res.status === 404 || res.status === 410) await this.cancel();
+    else if (!res.ok) console.warn('push failed', res.status, await res.text());
   }
 }

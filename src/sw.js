@@ -58,29 +58,93 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-// Time's up while the app is closed or in the background: the push worker sends an empty push
-// at the right moment, and the task's name comes from the app's own IndexedDB, so it never
-// leaves the device.
+// Time's up, or a fixed-time task coming up, while the app is closed or in the background.
+// The push worker sends an empty push at each moment the app booked, and what to say comes
+// from the app's own IndexedDB (see src/lib/reminders.ts), so it never leaves the device.
 self.addEventListener('push', (e) => {
   e.waitUntil(
-    runningItem()
+    dueNotes()
       .catch(() => null)
-      .then(async (it) => {
-        const tag = it ? 'timer-' + it.id : 'timer';
-        // Not every browser replaces a notification with the same tag, so close any first.
-        try {
-          for (const n of await self.registration.getNotifications({ tag })) n.close();
-        } catch {
-          /* can't list them here; the tag has to do */
+      .then((notes) => notes ?? timeUpNotes())
+      .then(async (notes) => {
+        for (const n of notes) {
+          // Not every browser replaces a notification with the same tag, so close any first.
+          try {
+            for (const old of await self.registration.getNotifications({ tag: n.tag })) old.close();
+          } catch {
+            /* can't list them here; the tag has to do */
+          }
+          await self.registration.showNotification(n.title, { body: n.body, icon: 'icon-192.png', tag: n.tag });
         }
-        return self.registration.showNotification("Time's up", {
-          body: it ? it.title : 'Your timer has run out.',
-          icon: 'icon-192.png',
-          tag,
-        });
       }),
   );
 });
+
+/** A little early is fine: the worker's clock and the phone's can differ by a few seconds. */
+const EARLY_MS = 30_000;
+
+/**
+ * What this push is for: every booked group that is due and not shown yet, marked as shown.
+ * If none is due (a push that arrived late), the last one shown again; null when nothing
+ * was booked this way (a push booked by an older version of the app).
+ */
+function dueNotes() {
+  return withMeta('readwrite', (meta, resolve) => {
+    const get = meta.get('alerts');
+    get.onsuccess = () => {
+      const plan = get.result;
+      if (!plan || !Array.isArray(plan.groups) || !plan.groups.length) return resolve(null);
+      const now = Date.now();
+      const due = plan.groups.filter((g) => !g.shown && g.at <= now + EARLY_MS);
+      if (!due.length) {
+        const last = plan.groups.filter((g) => g.shown).pop();
+        return resolve(last ? last.notes : null);
+      }
+      for (const g of due) g.shown = true;
+      meta.put(plan, 'alerts');
+      resolve(due.flatMap((g) => g.notes));
+    };
+  });
+}
+
+/** The old way: time's up for whichever task is running. */
+async function timeUpNotes() {
+  const it = await runningItem().catch(() => null);
+  return [
+    {
+      title: "Time's up",
+      body: it ? it.title : 'Your timer has run out.',
+      tag: it ? 'timer-' + it.id : 'timer',
+    },
+  ];
+}
+
+/** Open the app's database (never creating it) and run `fn` on its meta store. */
+function withMeta(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('elastic-day');
+    req.onupgradeneeded = () => req.transaction.abort(); // no database yet: don't create an empty one
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('meta')) {
+        db.close();
+        return resolve(null);
+      }
+      let out = null;
+      const tx = db.transaction('meta', mode);
+      tx.oncomplete = () => {
+        db.close();
+        resolve(out);
+      };
+      tx.onerror = tx.onabort = () => {
+        db.close();
+        reject(tx.error);
+      };
+      fn(tx.objectStore('meta'), (v) => (out = v));
+    };
+  });
+}
 
 /** The item currently running, read straight from the app's database (never creating it). */
 function runningItem() {
@@ -105,7 +169,7 @@ function runningItem() {
   });
 }
 
-// Tapping a time's-up notification brings the planner back to the front.
+// Tapping a notification brings the planner back to the front.
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   e.waitUntil(

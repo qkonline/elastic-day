@@ -5,7 +5,7 @@
 import { newItem, uid } from './actions';
 import { dkey } from './time';
 import type { Day, Item, Kind, Series, Settings, Status } from './types';
-import { DEFAULT_SETTINGS, isHue } from './types';
+import { DEFAULT_SETTINGS, FIXED_LEADS, isHue } from './types';
 
 export interface BackupV2 {
   app: 'elastic-day';
@@ -136,6 +136,7 @@ function normalizeSettings(raw: unknown): Settings {
     notify: typeof r.notify === 'boolean' ? r.notify : d.notify,
     notifyAsk: pick(r.notifyAsk, ['ask', 'never'] as const, d.notifyAsk),
     notifyAskAfter: typeof r.notifyAskAfter === 'string' && KEY.test(r.notifyAskAfter) ? r.notifyAskAfter : null,
+    fixedLead: pick(r.fixedLead, FIXED_LEADS, d.fixedLead),
     defStart: num(r.defStart, d.defStart)!,
     defWrap: num(r.defWrap, d.defWrap)!,
     dayLength: Math.max(60, num(r.dayLength, num(r.defWrap, d.defWrap)! - num(r.defStart, d.defStart)!)!),

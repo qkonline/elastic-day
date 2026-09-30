@@ -10,8 +10,9 @@ import {
   repeatMatches,
   seriesFromItem,
   syncSeriesInto,
+  withoutSeries,
 } from './repeat';
-import type { Day, Series } from './types';
+import type { Day, Item, Series } from './types';
 
 // 2026-09-25 is a Friday.
 describe('repeat rules', () => {
@@ -58,6 +59,20 @@ describe('repeat rules', () => {
     const weekdays = { ...s, repeat: 'Weekdays' };
     const monday = { ...deleted, key: '2026-09-28' };
     expect(syncSeriesInto(monday, weekdays, { ...s, repeat: 'Every Sunday' }, 'S1').items).toHaveLength(1);
+  });
+
+  it('takes a deleted series off a later day, leaving copies that were worked on or moved', () => {
+    const gym = (status: Item['status']) => ({
+      ...newItem({ title: 'Gym', repeat: 'Every day' }),
+      seriesId: 'S1',
+      status,
+    });
+    const other = newItem({ title: 'Other' });
+    const day: Day = { key: '2026-09-27', dayStart: 540, wrap: 1020, dayStarted: null, items: [gym('todo'), other] };
+    expect(withoutSeries(day, 'S1').items).toEqual([other]);
+    expect(withoutSeries({ ...day, items: [gym('skipped')] }, 'S1').items).toEqual([]);
+    const moved = { ...day, items: [gym('postponed'), other] };
+    expect(withoutSeries(moved, 'S1')).toBe(moved);
   });
 
   it('keeps step ids unique when steps share the same text', () => {
@@ -144,7 +159,7 @@ describe('backup parsing', () => {
       }),
     );
     if (!('kind' in r) || r.kind !== 'full') throw new Error('expected a full backup');
-    expect(r.settings).toMatchObject({ defStart: 540, themePref: 'match', clock24: true });
+    expect(r.settings).toMatchObject({ defStart: 540, themePref: 'match', clock24: true, fixedLead: 5 });
     expect(r.series).toHaveLength(1);
     expect(r.series[0].subtasks).toEqual([]);
     expect(r.days[0].items.map((i) => i.status)).toEqual(['todo', 'running', 'done']);

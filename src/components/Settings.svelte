@@ -4,7 +4,7 @@
   import { hasNotifications, needsInstallForNotifications } from '../lib/platform';
   import { pushConfigured } from '../lib/push';
   import { dL, fT, keyDate, shortDate } from '../lib/time';
-  import type { ShowTimes, ThemePref } from '../lib/types';
+  import { FIXED_LEADS, type ShowTimes, type ThemePref } from '../lib/types';
   import DayShape, { describe, type Shape } from './DayShape.svelte';
   import DisarmBar from './DisarmBar.svelte';
 
@@ -25,11 +25,12 @@
     if (!permission) return "This browser can't show notifications; the chime and vibration still work.";
     if (permission === 'denied')
       return "Notifications are blocked for this site. Allow them in your browser's site settings to turn them on here.";
+    const what = S.fixedLead ? "when time's up and before fixed times" : "when time's up";
     if (notifyOn)
       return pushConfigured()
-        ? "You'll get one when time's up, even with Elastic Day closed or your phone locked."
-        : "You'll get one when time's up while Elastic Day is in the background.";
-    return "Get a notification when time's up, even when you're not looking at Elastic Day.";
+        ? `You'll get one ${what}, even with Elastic Day closed or your phone locked.`
+        : `You'll get one ${what} while Elastic Day is in the background.`;
+    return `Get a notification ${what}, even when you're not looking at Elastic Day.`;
   });
 
   function toggleNotify() {
@@ -117,8 +118,8 @@
   <section class="card g12">
     <div class="alert">
       <div class="at">
-        <span class="ct">Time's-up alert</span>
-        <span class="muted">Two soft notes, plus a short vibration on phones.</span>
+        <span class="ct">Sound</span>
+        <span class="muted">Two soft notes when time's up, one before a fixed time. Phones also vibrate.</span>
       </div>
       <button
         class="switch hit"
@@ -126,7 +127,7 @@
         class:on={S.alertOn}
         role="switch"
         aria-checked={S.alertOn}
-        aria-label="Time's-up alert"
+        aria-label="Sound"
         onclick={() => P.setSettings({ alertOn: !S.alertOn })}><span></span></button
       >
     </div>
@@ -149,6 +150,16 @@
     {#if needsInstallForNotifications()}
       <button class="btn-plain self" onclick={() => P.openSheet({ type: 'install' })}>Show me how</button>
     {/if}
+    <div class="setting">
+      <span class="ol">Heads-up before a fixed time</span>
+      <div class="row">
+        {#each FIXED_LEADS as m (m)}
+          <button class="chip" aria-pressed={S.fixedLead === m} onclick={() => P.setSettings({ fixedLead: m })}
+            >{m ? `${m} min` : 'None'}</button
+          >
+        {/each}
+      </div>
+    </div>
   </section>
 
   <section class="card g12">

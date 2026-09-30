@@ -118,6 +118,12 @@ export function placeBySeries(day: Day, sid: string, series: Series[]): Day {
   return rest.every((x, k) => x === day.items[k]) ? day : { ...day, items: rest };
 }
 
+/** A later day without series `sid`'s task, unless that task has been worked on or moved. */
+export function withoutSeries(day: Day, sid: string): Day {
+  const items = day.items.filter((i) => i.seriesId !== sid || (i.status !== 'todo' && i.status !== 'skipped'));
+  return items.length === day.items.length ? day : { ...day, items };
+}
+
 /**
  * Bring a stored, not-yet-started later day in line with a series that changed from `prev` to
  * `next` (null = the series ended). The item is added only where the rule newly applies, so a

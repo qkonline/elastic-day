@@ -69,6 +69,8 @@ export interface Settings {
   notifyAsk: 'ask' | 'never';
   /** Day key before which the suggestion stays hidden ("Not now" = tomorrow). */
   notifyAskAfter: string | null;
+  /** Minutes before a fixed-time task to give a heads-up (0 = none). */
+  fixedLead: number;
   defStart: number;
   /** Planned wrap-up for new days: defStart + dayLength (can pass midnight). */
   defWrap: number;
@@ -122,6 +124,9 @@ export function inkOn(h: Hue): string {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.45 ? '#16181d' : '#ffffff';
 }
 
+/** The heads-up choices in Settings, in minutes before a fixed time (0 = none). */
+export const FIXED_LEADS = [0, 5, 10, 15] as const;
+
 export const DEFAULT_SETTINGS: Settings = {
   themePref: 'match',
   clock24: false,
@@ -130,6 +135,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notify: false,
   notifyAsk: 'ask',
   notifyAskAfter: null,
+  fixedLead: 5,
   defStart: 540,
   defWrap: 1020,
   dayLength: 480,

@@ -1,5 +1,5 @@
-// Time's-up alert: a two-note chime (880 Hz + 1175 Hz sine), a vibration, and a system
-// notification when the tab is hidden.
+// Alerts: a two-note chime at time's up (880 Hz + 1175 Hz sine), one note before a fixed time,
+// a vibration, and a system notification when the tab is hidden.
 
 let ac: AudioContext | null = null;
 
@@ -28,10 +28,10 @@ export function unlockOnFirstGesture(): void {
   addEventListener('keydown', once, true);
 }
 
-export function chime(): void {
+export function chime(notes = [880, 1175]): void {
   if (!ac) return;
   try {
-    [880, 1175].forEach((f, k) => {
+    notes.forEach((f, k) => {
       const o = ac!.createOscillator(),
         g = ac!.createGain();
       o.type = 'sine';
