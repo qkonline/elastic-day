@@ -1,7 +1,7 @@
 <script lang="ts">
   import { CONFIRM_MS, planner } from '../lib/planner.svelte';
 
-  // Shrinks over the 5 s an armed confirm stays open.
+  // Shrinks over the 10 s an armed confirm stays open.
   const pct = $derived(
     planner.confirm ? Math.max(0, 100 - ((planner.clock - planner.confirm.at) / CONFIRM_MS) * 100) : 0,
   );

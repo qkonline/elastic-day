@@ -70,7 +70,7 @@ export interface Drag {
   h: number;
 }
 
-export const CONFIRM_MS = 5000;
+export const CONFIRM_MS = 10_000;
 const SAVE_DELAY = 250;
 const SERIES_DELAY = 500;
 /** How far back to look for a timer left running on an earlier day. */
@@ -595,9 +595,10 @@ export class Planner {
     this.tick();
   }
 
+  /** Tick a check off, or untick it. Ticking waits for the day to start, like Start does. */
   toggleCheck(id: string): void {
     const it = this.item(id);
-    if (!it) return;
+    if (!it || (it.status !== 'done' && this.day.dayStarted == null)) return;
     this.update((d) => A.toggleCheck(d, id, this.n), `${it.title} ${it.status === 'done' ? 'not done' : 'done'}`);
   }
 

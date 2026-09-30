@@ -211,6 +211,19 @@ describe('Planner', () => {
     expect(p.weekKeys).toContain('2026-09-27');
   });
 
+  it('lets checks be ticked off only once the day has started', async () => {
+    const p = await boot();
+    p.addTask({ title: 'Vitamins', min: 0, kind: 'check', hue: 'lime', fixedAt: null });
+    const id = byTitle(p, 'Vitamins').id;
+    p.toggleCheck(id);
+    expect(byTitle(p, 'Vitamins').status).toBe('todo');
+    p.startDay();
+    p.toggleCheck(id);
+    expect(byTitle(p, 'Vitamins').status).toBe('done');
+    p.toggleCheck(id);
+    expect(byTitle(p, 'Vitamins').status).toBe('todo');
+  });
+
   it('keeps a late night on the day it started, until the day is ended', async () => {
     vi.setSystemTime(new Date(2026, 8, 25, 22, 0));
     const p = await boot();

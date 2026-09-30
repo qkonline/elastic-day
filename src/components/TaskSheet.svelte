@@ -281,7 +281,9 @@
           /></svg
         >
       </button>
-      {#if isCheck}
+      {#if isCheck && v.s === 'todo' && P.day.dayStarted == null}
+        <button class="ctl" disabled>Tick off once your day starts</button>
+      {:else if isCheck}
         <button class="ctl" class:done={v.s !== 'done'} onclick={() => P.toggleCheck(id)}
           ><span class="g">✓</span>{v.s === 'done' ? 'Untick' : 'Tick off'}</button
         >
@@ -542,6 +544,10 @@
   .foot .ctl {
     height: 50px;
     font-size: 15px;
+  }
+  .ctl:disabled {
+    color: var(--muted);
+    cursor: not-allowed;
   }
   .ctl.post {
     background: transparent;

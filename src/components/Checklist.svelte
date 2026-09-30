@@ -3,8 +3,10 @@
   import { keyDate, shortDate } from '../lib/time';
   import { hueColor, inkOn } from '../lib/types';
 
-  // Tasks with no duration: ticked off, never timed, kept out of the timeline.
+  // Tasks with no duration: ticked off, never timed, kept out of the timeline. Like a task's
+  // Start button, ticking waits for the day to start (unticking never does).
   const checks = $derived(P.day.items.filter((i) => i.kind === 'check' && i.status !== 'skipped'));
+  const started = $derived(P.day.dayStarted != null);
   const done = $derived(checks.filter((i) => i.status === 'done').length);
 </script>
 
@@ -17,13 +19,15 @@
     <ul>
       {#each checks as it (it.id)}
         {@const moved = it.status === 'postponed'}
+        {@const waiting = !started && it.status === 'todo'}
         <li class:done={it.status === 'done'} class:moved>
           <button
             class="box hit"
             role="checkbox"
             aria-checked={it.status === 'done'}
             aria-label={it.title}
-            disabled={moved}
+            disabled={moved || waiting}
+            title={waiting ? 'Start your day first' : undefined}
             style:--c={hueColor(it.hue)}
             style:--ink={inkOn(it.hue)}
             onclick={() => P.toggleCheck(it.id)}>{it.status === 'done' ? '✓' : ''}</button
@@ -116,8 +120,11 @@
     text-decoration: line-through;
     text-decoration-color: var(--faint);
   }
-  .moved .box {
+  .box:disabled {
     opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .moved .box {
     cursor: default;
   }
   .meta {
