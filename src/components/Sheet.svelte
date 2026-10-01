@@ -181,14 +181,19 @@
     overflow: hidden;
     outline: none;
   }
-  /* Sit on top of the on-screen keyboard and never be taller than what's still visible. */
+  /* Sit on top of the on-screen keyboard and never be taller than what's still visible. The
+     first shadow fills the space under the sheet down to the keyboard with the sheet's colour
+     (listed first so it covers the drop shadow there): iOS's see-through bar above the keyboard
+     (arrows and ✓) sits there, and the page behind would otherwise show around it. */
   .bottom {
     left: 0;
     right: 0;
     bottom: var(--kb, 0px);
     max-height: min(88dvh, calc(var(--vvh, 100dvh) - 12px));
     border-radius: 22px 22px 0 0;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+    box-shadow:
+      0 var(--kb, 0px) 0 var(--bg),
+      0 -10px 40px rgba(0, 0, 0, 0.2);
   }
   .bottom.settling {
     transition: transform 220ms ease;
