@@ -5,7 +5,8 @@
 //   whatever the new sheet puts under the finger.
 // - The rest of the row, on touch screens: press and hold. A quick move there scrolls as usual.
 // While dragging, the task follows the finger, an orange line marks where it will land, and the
-// page scrolls when the finger nears the top or bottom of the screen.
+// page scrolls when the finger nears the top or bottom of the screen. An ended day can't be
+// rearranged: trying to pick a task up there says so instead.
 
 import { vibrate } from './alert';
 import type { Planner } from './planner.svelte';
@@ -47,6 +48,11 @@ export function pickUp(
     frame = 0;
 
   const begin = () => {
+    if (p.locked) {
+      cleanup();
+      p.sayLocked();
+      return;
+    }
     started = true;
     p.drag = { id, over: null, dy: 0, h: rowHeight(p, list(), id) };
     vibrate(15);

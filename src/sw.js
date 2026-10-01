@@ -25,6 +25,8 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   const scope = new URL(self.registration.scope);
   if (url.origin !== scope.origin || !url.pathname.startsWith(scope.pathname)) return;
+  // Which build is current: always the server's answer, never a cached one.
+  if (url.pathname === scope.pathname + 'version.json') return;
 
   if (req.mode === 'navigate') {
     // Only the app page itself is stored as the offline shell, never some other file opened in a tab.

@@ -25,7 +25,8 @@
   </div>
 {/if}
 
-{#if count}
+<!-- An ended day is a record: nothing to clear. -->
+{#if count && !P.locked}
   <div class="clear">
     {#if armed}
       <div class="armed" role="group" aria-label="Confirm clear">

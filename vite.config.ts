@@ -10,6 +10,8 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 /**
  * Emit dist/sw.js with this build's files to precache and a cache name derived from their
  * contents, so any change to the app, an icon or the manifest ships a new service worker.
+ * The same version goes into index.html (`<meta name="build">`) and dist/version.json, which
+ * the app checks to notice that a newer build is out (src/lib/update.ts).
  */
 function serviceWorker(): Plugin {
   return {
@@ -32,10 +34,15 @@ function serviceWorker(): Plugin {
         hash.update(name).update(readFileSync(here(`./public/${name}`)));
         files.push(name);
       }
+      const version = hash.digest('hex').slice(0, 12);
       const source = readFileSync(here('./src/sw.js'), 'utf8')
-        .replace('__VERSION__', hash.digest('hex').slice(0, 12))
+        .replace('__VERSION__', version)
         .replace('__ASSETS__', JSON.stringify(files.sort()));
       this.emitFile({ type: 'asset', fileName: 'sw.js', source });
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ v: version }) });
+      const html = bundle['index.html'];
+      if (html?.type === 'asset')
+        html.source = String(html.source).replace('</head>', `  <meta name="build" content="${version}" />\n  </head>`);
     },
   };
 }

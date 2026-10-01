@@ -20,6 +20,7 @@
       {#each checks as it (it.id)}
         {@const moved = it.status === 'postponed'}
         {@const waiting = P.waiting && it.status === 'todo'}
+        {@const off = waiting || P.locked}
         <li class:done={it.status === 'done'} class:moved>
           <button
             class="box hit"
@@ -27,10 +28,10 @@
             aria-checked={it.status === 'done'}
             aria-label={it.title}
             disabled={moved}
-            aria-disabled={waiting}
+            aria-disabled={off}
             style:--c={hueColor(it.hue)}
             style:--ink={inkOn(it.hue)}
-            onclick={() => (waiting ? P.askToStartDay('check') : P.toggleCheck(it.id))}
+            onclick={() => (P.locked ? P.sayLocked() : waiting ? P.askToStartDay('check') : P.toggleCheck(it.id))}
             >{it.status === 'done' ? '✓' : ''}</button
           >
           <button class="title" onclick={() => P.openSheet({ type: 'task', id: it.id })}>{it.title}</button>

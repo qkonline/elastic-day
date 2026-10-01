@@ -34,6 +34,7 @@ import {
   todayKey,
 } from './time';
 import { activeDayKey } from './today';
+import { newBuildOut, reloadToUpdate } from './update';
 import type { Day, Hue, Item, Kind, Series, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
@@ -75,6 +76,9 @@ export const CONFIRM_MS = 10_000;
 export const NUDGE_MS = 6000;
 const SAVE_DELAY = 250;
 const SERIES_DELAY = 500;
+/** Ask for a newer build on coming back to the app (at most this often), and while it stays open. */
+const UPDATE_ON_RETURN_MS = 60 * 60_000;
+const UPDATE_EVERY_MS = 24 * 3600_000;
 /** How far back to look for a timer left running on an earlier day. */
 const RECENT_DAYS = 7;
 export const THEME_KEY = 'elastic-day:theme';
@@ -120,6 +124,14 @@ export class Planner {
   isToday = $derived(this.viewKey === this.today);
   /** Ticking a check or starting a timer waits for Start my day. Earlier days are history and never wait. */
   waiting = $derived(this.day.dayStarted == null && this.viewKey >= this.today);
+  /** An ended day is a record: it can be looked at but not changed (Today's can be reopened). */
+  locked = $derived(this.day.dayEnded != null);
+  /** Why an ended day can't be changed, and what to do about it. */
+  lockedText = $derived(
+    this.isToday
+      ? 'This day has ended. Reopen it at the bottom of the day to make changes.'
+      : 'This day has ended, so it stays as it was.',
+  );
   /** Shown after tapping a check or a Start button before the day has started (Start my day answers it). */
   nudge = $state<{ text: string; at: number } | null>(null);
   /** Now, in minutes since midnight of the viewed day. */
@@ -168,6 +180,10 @@ export class Planner {
   private pushScheduled = false;
   /** Heads-ups due after this moment still need their chime (earlier ones had it, or were missed). */
   private remindFrom = Date.now();
+  private updateCheckedAt = Date.now();
+  /** A newer build is out: reload for it at the next quiet moment. */
+  private updateReady = false;
+  private reloading = false;
 
   // ---------- lifecycle ----------
 
@@ -192,7 +208,7 @@ export class Planner {
       // Anything already over time when the page loads has had its alert.
       for (const d of Object.values(this.days))
         for (const it of d.items) if (isActive(it) && worked(it, minutesInto(d.key)) >= it.min) this.alerted.add(it.id);
-      this.remindFrom = Date.now();
+      this.remindFrom = this.updateCheckedAt = Date.now();
       this.ready = true;
     } catch (e) {
       this.failed = e instanceof Error ? e.message : String(e);
@@ -220,6 +236,7 @@ export class Planner {
    * fixed times. What each push should say is stored for the service worker.
    */
   private onHidden(): void {
+    this.updateIfQuiet();
     void this.flush();
     if (!this.settings.notify) return;
     const plan = pushPlan(this.alerts(), Date.now());
@@ -235,6 +252,27 @@ export class Planner {
     }
     this.pushScheduled = false;
     this.tick();
+    // Back in the app: the moment to pick up a newer build, before anything is under way.
+    if (this.updateReady) this.updateIfQuiet();
+    else if (Date.now() - this.updateCheckedAt > UPDATE_ON_RETURN_MS) void this.checkForUpdate(true);
+  }
+
+  /**
+   * Ask the server whether a newer build is out. Reload for it straight away when the app has
+   * just come back or is out of sight; otherwise (open and in use) at the next of those moments.
+   */
+  private async checkForUpdate(returning: boolean): Promise<void> {
+    this.updateCheckedAt = Date.now();
+    this.updateReady ||= await newBuildOut();
+    if (returning || (typeof document !== 'undefined' && document.hidden)) this.updateIfQuiet();
+  }
+
+  /** Save and reload for a newer build, unless a sheet, drag, question or celebration is up. */
+  private updateIfQuiet(): void {
+    if (!this.updateReady || this.reloading) return;
+    if (this.sheet || this.drag || this.confirm || this.resched || this.celebrate || this.showWelcome) return;
+    this.reloading = true;
+    void this.flush().then(reloadToUpdate);
   }
 
   /** Notifications still to come: the running timer's time's up, and heads-ups before fixed times. */
@@ -288,6 +326,7 @@ export class Planner {
     if (tk !== this.today) this.rollover(tk);
     if (this.confirm && Date.now() - this.confirm.at > CONFIRM_MS) this.confirm = null;
     if (this.nudge && Date.now() - this.nudge.at > NUDGE_MS) this.nudge = null;
+    if (Date.now() - this.updateCheckedAt > UPDATE_EVERY_MS) void this.checkForUpdate(false);
     for (const d of Object.values(this.days)) {
       for (const it of d.items) {
         if (it.status !== 'running') continue;
@@ -479,8 +518,9 @@ export class Planner {
     return A.find(this.day, id);
   }
 
-  /** Apply a pure action to the viewed day and store the result. */
+  /** Apply a pure action to the viewed day and store the result. An ended day stays as it is. */
   private update(fn: (d: Day) => Day, msg?: string): void {
+    if (this.locked) return;
     const next = fn(this.day);
     if (next !== this.day) this.put(next);
     if (msg) this.say(msg);
@@ -572,6 +612,12 @@ export class Planner {
     this.say(text);
   }
 
+  /** Something on an ended day was tapped: say why nothing happens. */
+  sayLocked(): void {
+    this.nudge = { text: this.lockedText, at: Date.now() };
+    this.say(this.lockedText);
+  }
+
   startDay(): void {
     unlockAudio();
     this.nudge = null;
@@ -617,8 +663,10 @@ export class Planner {
     this.tick(); // past midnight, Today moves on to the new date
   }
 
+  /** The one change an ended day takes: opening it again. */
   reopenDay(): void {
-    this.update((d) => A.reopenDay(d), 'Day reopened');
+    this.put(A.reopenDay(this.day));
+    this.say('Day reopened');
     this.tick();
   }
 
@@ -711,6 +759,7 @@ export class Planner {
 
   /** Restore a skipped item, or undo a move (removing the untouched copy from the other day). */
   async restore(id: string): Promise<void> {
+    if (this.locked) return;
     const it = this.item(id);
     if (!it) return;
     const key = this.viewKey;
@@ -727,6 +776,7 @@ export class Planner {
   // ---------- postpone / reschedule ----------
 
   async postpone(id: string, where: 'later' | 'tomorrow'): Promise<void> {
+    if (this.locked) return;
     const it = this.item(id);
     if (!it) return;
     this.confirm = null;
@@ -745,6 +795,7 @@ export class Planner {
   }
 
   reschedNow(id: string): void {
+    if (this.locked) return;
     const it = this.item(id);
     if (!it) return;
     const res = A.reschedNow(this.day, id);
@@ -766,6 +817,7 @@ export class Planner {
   }
 
   async moveToDay(id: string, key: string, msg?: string): Promise<void> {
+    if (this.locked) return;
     if (!key || key === this.viewKey) return;
     const src = this.viewKey;
     const res = A.moveOut(this.day, id, key, this.n);
@@ -831,6 +883,7 @@ export class Planner {
 
   /** Delete a repeating task from this day and every later day: its series ends the day before. */
   async removeWithLater(id: string): Promise<void> {
+    if (this.locked) return;
     const it = this.item(id);
     const s = it?.seriesId ? this.series.find((x) => x.id === it.seriesId) : undefined;
     this.remove(id);
@@ -871,6 +924,7 @@ export class Planner {
   }
 
   async setRepeat(id: string, repeat: string): Promise<void> {
+    if (this.locked) return;
     const it = this.item(id);
     if (!it || it.repeat === repeat) return;
     if (repeat === 'Once') return this.stopRepeating(id);
@@ -888,6 +942,7 @@ export class Planner {
   }
 
   async stopRepeating(id: string): Promise<void> {
+    if (this.locked) return;
     const it = this.item(id);
     if (!it) return;
     const key = this.viewKey;
@@ -1002,6 +1057,10 @@ export class Planner {
   }
 
   commitDrag(): void {
+    if (this.locked) {
+      this.drag = null;
+      return;
+    }
     const d = this.drag;
     this.drag = null;
     if (!d || d.over == null) return;

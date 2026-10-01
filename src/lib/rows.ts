@@ -84,7 +84,9 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
   const { it, idx } = r;
   const s = it.status,
     n = c.n;
-  const missedAny = c.isToday && isMissed(r, n);
+  // An ended day is only for looking at: nothing on it is missed, started or restored.
+  const ended = c.day.dayEnded != null;
+  const missedAny = c.isToday && !ended && isMissed(r, n);
   const missed = missedAny && it.kind !== 'buffer';
   const pBuf = missedAny && it.kind === 'buffer';
   const w = worked(it, n);
@@ -184,9 +186,9 @@ export function itemVM(r: Row, c: Ctx): ItemVM {
       it.kind === 'fixed' && it.fixedAt != null ? fT(it.fixedAt, c.clock24) + (it.fixedAt >= 1440 ? ' +1' : '') : null,
     fixedNow: r.moved ? fT(r.start, c.clock24) + (r.start >= 1440 ? ' +1' : '') : null,
     hue: hueColor(it.hue),
-    aStart: s === 'todo' && c.isToday && !missed && !pBuf && it.kind !== 'buffer',
+    aStart: s === 'todo' && c.isToday && !ended && !missed && !pBuf && it.kind !== 'buffer',
     aCheck: s === 'done',
-    aRestore: s === 'skipped' || (s === 'postponed' && it.startedAt == null),
+    aRestore: !ended && (s === 'skipped' || (s === 'postponed' && it.startedAt == null)),
     restoreLabel: s === 'postponed' ? 'Undo' : 'Restore',
     glyph: !c.isToday && s === 'todo' ? '○' : null,
     nowIn: null,

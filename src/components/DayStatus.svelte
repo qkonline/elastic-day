@@ -46,8 +46,8 @@
   <button
     class="status"
     in:slide={unfold()}
-    aria-label={`Day started at ${fNZ(d.dayStarted, c24)}${summary ? ', ' + summary : ''}. Change day hours`}
-    onclick={() => P.openSheet({ type: 'hours' })}
+    aria-label={`Day started at ${fNZ(d.dayStarted, c24)}${summary ? ', ' + summary : ''}${P.locked ? '' : '. Change day hours'}`}
+    onclick={() => (P.locked ? P.sayLocked() : P.openSheet({ type: 'hours' }))}
   >
     <span class="line">
       <span>Day started at <span class="t">{fNZ(d.dayStarted, c24)}</span></span>

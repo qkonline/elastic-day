@@ -106,6 +106,7 @@
       <input
         class="title large-text"
         value={it.title}
+        readonly={P.locked}
         aria-label="Title"
         oninput={(e) => P.edit(id, { title: e.currentTarget.value })}
         onblur={(e) => !e.currentTarget.value.trim() && P.edit(id, { title: 'Untitled' })}
@@ -115,154 +116,163 @@
   </div>
 
   <div class="body">
-    {#if postponeArmed && !v.active}
-      <PostponeChooser {id} title={it.title} large />
-    {/if}
+    <!-- On an ended day every control in here is off: the task can be looked at, not changed. -->
+    <fieldset class="fields" disabled={P.locked}>
+      {#if postponeArmed && !v.active}
+        <PostponeChooser {id} title={it.title} large />
+      {/if}
 
-    {#if v.active}
-      <div class="timer" style:border={ring}>
-        <div class="trow">
-          <div class="tcol">
-            <span class="count" style:color={v.countColor}>{v.count}</span>
-            <span class="tsub">
-              {v.s === 'paused'
-                ? `${v.countSub} · worked ${dL(v.w)} of ${dL(it.min)}`
-                : `worked ${dL(v.w)} of ${dL(it.min)}` + (v.pausedTot >= 0.5 ? ` · paused ${dL(v.pausedTot)}` : '')}
-            </span>
+      {#if v.active}
+        <div class="timer" style:border={ring}>
+          <div class="trow">
+            <div class="tcol">
+              <span class="count" style:color={v.countColor}>{v.count}</span>
+              <span class="tsub">
+                {v.s === 'paused'
+                  ? `${v.countSub} · worked ${dL(v.w)} of ${dL(it.min)}`
+                  : `worked ${dL(v.w)} of ${dL(it.min)}` + (v.pausedTot >= 0.5 ? ` · paused ${dL(v.pausedTot)}` : '')}
+              </span>
+            </div>
+            <span class="badge">{v.s === 'paused' ? '‖ Paused' : v.isOver ? 'Over time' : 'Running'}</span>
           </div>
-          <span class="badge">{v.s === 'paused' ? '‖ Paused' : v.isOver ? 'Over time' : 'Running'}</span>
-        </div>
-        <div class="bar"><div style:width="{v.isOver ? 100 : v.p}%" style:background={barBg}></div></div>
-        {#if postponeArmed}
-          <PostponeChooser {id} title={it.title} worked={v.w} large />
-        {:else}
-          <div class="ctls">
-            <!-- One button that flips, so keyboard focus stays on it. -->
-            <button
-              class="ctl primary"
-              aria-label="{v.s === 'running' ? 'Pause' : 'Resume'} {it.title}"
-              onclick={() => (v.s === 'running' ? P.pause(id) : P.resume(id))}
-              ><span class="g">{v.s === 'running' ? '‖' : '▶'}</span>{v.s === 'running' ? 'Pause' : 'Resume'}</button
-            >
-            <button class="ctl done" aria-label="Done {it.title}" onclick={() => P.finish(id)}
-              ><span class="g">✓</span>Done</button
-            >
-            <button class="ctl ghost" aria-label="Postpone {it.title}" onclick={() => P.arm('postpone', id)}
-              ><span class="g">↷</span>Postpone</button
-            >
-          </div>
-        {/if}
-      </div>
-    {/if}
-
-    <div class="card">
-      <div class="group">
-        <KindChips kind={isCheck ? 'task' : it.kind} hue={it.hue} onpick={pickKind} />
-        {#if it.kind === 'fixed'}
-          <label class="at">
-            <span>At</span>
-            <input
-              class="time"
-              type="time"
-              aria-label="Fixed time"
-              value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
-              onchange={(e) =>
-                e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
-            />
-          </label>
-          {#if v.fixedNow}
-            <span class="moved-note">
-              The tasks before it run past {v.fixedAt}, so it starts at {v.fixedNow}.
-            </span>
+          <div class="bar"><div style:width="{v.isOver ? 100 : v.p}%" style:background={barBg}></div></div>
+          {#if postponeArmed}
+            <PostponeChooser {id} title={it.title} worked={v.w} large />
+          {:else}
+            <div class="ctls">
+              <!-- One button that flips, so keyboard focus stays on it. -->
+              <button
+                class="ctl primary"
+                aria-label="{v.s === 'running' ? 'Pause' : 'Resume'} {it.title}"
+                onclick={() => (v.s === 'running' ? P.pause(id) : P.resume(id))}
+                ><span class="g">{v.s === 'running' ? '‖' : '▶'}</span>{v.s === 'running' ? 'Pause' : 'Resume'}</button
+              >
+              <button class="ctl done" aria-label="Done {it.title}" onclick={() => P.finish(id)}
+                ><span class="g">✓</span>Done</button
+              >
+              <button class="ctl ghost" aria-label="Postpone {it.title}" onclick={() => P.arm('postpone', id)}
+                ><span class="g">↷</span>Postpone</button
+              >
+            </div>
           {/if}
+        </div>
+      {/if}
+
+      <div class="card">
+        <div class="group">
+          <KindChips kind={isCheck ? 'task' : it.kind} hue={it.hue} onpick={pickKind} />
+          {#if it.kind === 'fixed'}
+            <label class="at">
+              <span>At</span>
+              <input
+                class="time"
+                type="time"
+                aria-label="Fixed time"
+                value={it.fixedAt != null ? hhmm(it.fixedAt) : ''}
+                onchange={(e) =>
+                  e.currentTarget.value && P.edit(id, { fixedAt: clockToDay(hm(e.currentTarget.value), late) })}
+              />
+            </label>
+            {#if v.fixedNow}
+              <span class="moved-note">
+                The tasks before it run past {v.fixedAt}, so it starts at {v.fixedNow}.
+              </span>
+            {/if}
+          {/if}
+        </div>
+        {#if it.kind !== 'buffer'}
+          <Fields field="colour" hue={it.hue} onHue={(h) => P.edit(id, { hue: h })} />
+        {/if}
+        {#if !isCheck}
+          <div class="pos">
+            <span class="label">Position: {v.idx + 1} of {P.day.items.length}</span>
+            <button class="pb" onclick={() => P.move(id, -1)}>↑ Earlier</button>
+            <button class="pb" onclick={() => P.move(id, 1)}>↓ Later</button>
+          </div>
         {/if}
       </div>
-      {#if it.kind !== 'buffer'}
-        <Fields field="colour" hue={it.hue} onHue={(h) => P.edit(id, { hue: h })} />
-      {/if}
-      {#if !isCheck}
-        <div class="pos">
-          <span class="label">Position: {v.idx + 1} of {P.day.items.length}</span>
-          <button class="pb" onclick={() => P.move(id, -1)}>↑ Earlier</button>
-          <button class="pb" onclick={() => P.move(id, 1)}>↓ Later</button>
-        </div>
-      {/if}
-    </div>
 
-    <div class="props">
-      <SwitchRow
-        label="Timed"
-        note={v.active
-          ? 'Stop the timer to change this'
-          : isCheck
-            ? 'No timer, just a box to tick'
-            : it.kind === 'buffer'
-              ? 'How much time it keeps free'
-              : 'Start, pause and finish it with a timer'}
-        on={!isCheck}
-        disabled={v.active}
-        ontoggle={() => setDuration(isCheck ? lastMin : 0)}
-      >
-        <Fields field="duration" min={it.min} showLabel={false} onMin={setDuration} />
-      </SwitchRow>
-      <SwitchRow
-        label="Repeats"
-        note={repeating ? "Changes also update later days you haven't started yet" : 'Just this once'}
-        on={repeating}
-        ontoggle={() => P.setRepeat(id, repeating ? 'Once' : lastRepeat)}
-      >
-        <div class="row">
-          {#each repeatOpts as r (r)}
-            <button class="chip" aria-pressed={it.repeat === r} onclick={() => P.setRepeat(id, r)}>{r}</button>
-          {/each}
-        </div>
-      </SwitchRow>
-    </div>
+      <div class="props">
+        <SwitchRow
+          label="Timed"
+          note={v.active
+            ? 'Stop the timer to change this'
+            : isCheck
+              ? 'No timer, just a box to tick'
+              : it.kind === 'buffer'
+                ? 'How much time it keeps free'
+                : 'Start, pause and finish it with a timer'}
+          on={!isCheck}
+          disabled={v.active}
+          ontoggle={() => setDuration(isCheck ? lastMin : 0)}
+        >
+          <Fields field="duration" min={it.min} showLabel={false} onMin={setDuration} />
+        </SwitchRow>
+        <SwitchRow
+          label="Repeats"
+          note={repeating ? "Changes also update later days you haven't started yet" : 'Just this once'}
+          on={repeating}
+          ontoggle={() => P.setRepeat(id, repeating ? 'Once' : lastRepeat)}
+        >
+          <div class="row">
+            {#each repeatOpts as r (r)}
+              <button class="chip" aria-pressed={it.repeat === r} onclick={() => P.setRepeat(id, r)}>{r}</button>
+            {/each}
+          </div>
+        </SwitchRow>
+      </div>
 
-    <div class="card tight">
-      <span class="label sublabel">
-        Subtasks {it.subtasks.length ? `· ${it.subtasks.filter((x) => x.d).length}/${it.subtasks.length}` : ''}
-      </span>
-      {#each it.subtasks as x, xi (x.id)}
-        <div class="step">
-          <button
-            class="tog hit"
-            style:--hit-x="4px"
-            style:--hit-y="4px"
-            role="checkbox"
-            aria-checked={x.d}
-            aria-label="Toggle step: {x.t}"
-            onclick={() => P.toggleSub(id, x.id)}
-          >
-            <StepBox index={xi} done={x.d} />
-          </button>
-          <span class="st" class:done={x.d}>{x.t}</span>
-          <button class="rm hit" aria-label="Remove step: {x.t}" onclick={() => P.removeSub(id, x.id)}>×</button>
-        </div>
-      {/each}
-      <input
-        class="newsub"
-        bind:value={newSub}
-        onkeydown={(e) => e.key === 'Enter' && !e.isComposing && addStep()}
-        onblur={addStep}
-        placeholder="Add a step…"
-        aria-label="Add a step"
-      />
-    </div>
+      <div class="card tight">
+        <span class="label sublabel">
+          Subtasks {it.subtasks.length ? `· ${it.subtasks.filter((x) => x.d).length}/${it.subtasks.length}` : ''}
+        </span>
+        {#each it.subtasks as x, xi (x.id)}
+          <div class="step">
+            <button
+              class="tog hit"
+              style:--hit-x="4px"
+              style:--hit-y="4px"
+              role="checkbox"
+              aria-checked={x.d}
+              aria-label="Toggle step: {x.t}"
+              onclick={() => P.toggleSub(id, x.id)}
+            >
+              <StepBox index={xi} done={x.d} />
+            </button>
+            <span class="st" class:done={x.d}>{x.t}</span>
+            {#if !P.locked}
+              <button class="rm hit" aria-label="Remove step: {x.t}" onclick={() => P.removeSub(id, x.id)}>×</button>
+            {/if}
+          </div>
+        {/each}
+        {#if !P.locked}
+          <input
+            class="newsub"
+            bind:value={newSub}
+            onkeydown={(e) => e.key === 'Enter' && !e.isComposing && addStep()}
+            onblur={addStep}
+            placeholder="Add a step…"
+            aria-label="Add a step"
+          />
+        {/if}
+      </div>
 
-    <div class="card tight notes">
-      <span class="label">Notes</span>
-      <textarea
-        rows="3"
-        placeholder="Anything to remember"
-        aria-label="Notes"
-        value={it.note}
-        oninput={(e) => P.edit(id, { note: e.currentTarget.value })}></textarea>
-    </div>
+      <div class="card tight notes">
+        <span class="label">Notes</span>
+        <textarea
+          rows="3"
+          placeholder={P.locked ? '' : 'Anything to remember'}
+          aria-label="Notes"
+          value={it.note}
+          oninput={(e) => P.edit(id, { note: e.currentTarget.value })}></textarea>
+      </div>
+    </fieldset>
   </div>
 
   <div class="foot">
-    {#if delArmed}
+    {#if P.locked}
+      <p class="ended">{P.lockedText}</p>
+    {:else if delArmed}
       <div class="confirm" class:choice={repeatsLater} role="group" aria-label="Confirm delete">
         {#if repeatsLater}
           <span class="q">Delete it just for {P.isToday ? 'today' : 'this day'}, or for later days too?</span>
@@ -359,8 +369,39 @@
     flex-direction: column;
     gap: 12px;
   }
-  .body > :global(*) {
+  .body > :global(*),
+  .fields > :global(*) {
     flex-shrink: 0;
+  }
+  .fields {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* Ended day: what was chosen stands out, the rest steps back, and nothing looks tappable. */
+  .fields:disabled :global(button) {
+    cursor: default;
+  }
+  .fields:disabled :global(.chip:not([aria-pressed='true'])),
+  .fields:disabled .pb {
+    opacity: 0.45;
+  }
+  .fields:disabled textarea {
+    color: var(--text);
+    -webkit-text-fill-color: var(--text);
+    opacity: 1;
+  }
+  .ended {
+    flex: 1;
+    margin: 0;
+    padding: 6px 2px;
+    font: 400 14px/1.45 var(--font);
+    color: var(--muted);
+    text-wrap: pretty;
   }
   .timer {
     padding: 16px;

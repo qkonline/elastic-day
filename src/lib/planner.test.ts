@@ -252,6 +252,38 @@ describe('Planner', () => {
     expect(byTitle(p, 'Vitamins').status).toBe('done');
   });
 
+  it('keeps an ended day as it was, until it is reopened', async () => {
+    const p = await boot();
+    add(p, 'Write');
+    add(p, 'Read');
+    p.addTask({ title: 'Vitamins', min: 0, kind: 'check', hue: 'lime', fixedAt: null });
+    p.startDay();
+    await p.endDay(false);
+    expect(p.locked).toBe(true);
+    const ended = p.day;
+    const read = byTitle(p, 'Read').id;
+    p.edit(read, { title: 'Changed' });
+    p.move(read, -1);
+    p.skip(read);
+    p.toggleCheck(byTitle(p, 'Vitamins').id);
+    p.addTask({ title: 'More', min: 30, kind: 'task', hue: 'cyan', fixedAt: null });
+    p.drag = { id: read, over: 0, dy: 0, h: 60 };
+    p.commitDrag();
+    await p.setRepeat(read, 'Every day');
+    await p.postpone(read, 'tomorrow');
+    p.remove(read);
+    expect(p.day).toBe(ended);
+    expect(p.series).toEqual([]);
+    expect(p.drag).toBeNull();
+    p.sayLocked();
+    expect(p.nudge?.text).toBe('This day has ended. Reopen it at the bottom of the day to make changes.');
+
+    p.reopenDay();
+    expect(p.locked).toBe(false);
+    p.edit(read, { title: 'Changed' });
+    expect(byTitle(p, 'Changed')).toBeTruthy();
+  });
+
   it('keeps a late night on the day it started, until the day is ended', async () => {
     vi.setSystemTime(new Date(2026, 8, 25, 22, 0));
     const p = await boot();

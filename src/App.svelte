@@ -157,7 +157,12 @@
   <PullIndicator />
   <StartFirst />
 
-  <button class="fab" aria-label="Add task" inert={covered} onclick={() => P.openSheet({ type: 'add' })}>
+  <button
+    class="fab"
+    aria-label="Add task"
+    inert={covered}
+    onclick={() => (P.locked ? P.sayLocked() : P.openSheet({ type: 'add' }))}
+  >
     <span class="plus">+</span><span>Add task</span>
   </button>
 

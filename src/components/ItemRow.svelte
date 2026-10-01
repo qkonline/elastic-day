@@ -19,7 +19,7 @@
   const hovered = $derived(desktop.current && P.hover === id);
   const postponeArmed = $derived(P.armed('postpone', id));
   const rsOpen = $derived(!!P.resched && P.resched.id === id && v.missed);
-  const showSkip = $derived(P.isToday && hovered && v.s === 'todo' && !v.missed);
+  const showSkip = $derived(P.isToday && !P.locked && hovered && v.s === 'todo' && !v.missed);
 
   type Ctl = { g: string; l: string; k?: 'primary' | 'done' | 'ghost'; on: () => void };
   const controls: Ctl[] | null = $derived.by(() => {
