@@ -252,6 +252,41 @@ describe('Planner', () => {
     expect(byTitle(p, 'Vitamins').status).toBe('done');
   });
 
+  it('asks when an over-time task was finished, and can log it at time up', async () => {
+    const p = await boot();
+    add(p, 'Write', 30);
+    p.startDay(); // 10:00
+    const id = byTitle(p, 'Write').id;
+    vi.setSystemTime(new Date(2026, 8, 25, 10, 32)); // 2 min over: Done is just done
+    p.tick();
+    expect(p.timeUpAt(id)).toBeCloseTo(630, 0);
+    vi.setSystemTime(new Date(2026, 8, 25, 11, 5)); // 35 min over: Done asks
+    p.tick();
+    p.done(id);
+    expect(p.armed('finish', id)).toBe(true);
+    expect(byTitle(p, 'Write').status).toBe('running');
+    p.finishAt(id, p.timeUpAt(id)!);
+    expect(byTitle(p, 'Write')).toMatchObject({ status: 'done' });
+    expect(byTitle(p, 'Write').endedAt).toBeCloseTo(630, 0);
+  });
+
+  it('corrects when a task and the day started', async () => {
+    const p = await boot();
+    add(p, 'Write', 30);
+    p.startDay(); // 10:00
+    const id = byTitle(p, 'Write').id;
+    vi.setSystemTime(new Date(2026, 8, 25, 10, 10));
+    p.tick();
+    p.retime(id, { start: 590 }); // really began at 9:50
+    expect(byTitle(p, 'Write').startedAt).toBe(590);
+    expect(p.day.dayStarted).toBe(590);
+    expect(p.dayStartBounds()).toEqual([0, 590]);
+    p.saveHours(p.day.dayStart, p.day.wrap, 580);
+    expect(p.day.dayStarted).toBe(580);
+    p.saveHours(p.day.dayStart, p.day.wrap, 700); // never after the first task started
+    expect(p.day.dayStarted).toBe(590);
+  });
+
   it('keeps an ended day as it was, until it is reopened', async () => {
     const p = await boot();
     add(p, 'Write');

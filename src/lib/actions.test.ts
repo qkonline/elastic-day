@@ -238,3 +238,47 @@ describe('checks and the end of the day', () => {
     expect(A.startItem(d, 'b', 1510).dayEnded).toBeNull();
   });
 });
+
+describe('correcting recorded times', () => {
+  // "a" ran 9:00–9:30, "b" 9:40–10:20, "c" has been running since 10:30; now is 10:45.
+  const d0 = day(
+    [
+      t('a', 30, { status: 'done', startedAt: 540, endedAt: 570 }),
+      t('b', 30, { status: 'done', startedAt: 580, endedAt: 620 }),
+      t('c', 30, { status: 'running', startedAt: 630 }),
+      t('d', 30),
+    ],
+    { dayStarted: 540 },
+  );
+
+  it('moves a running task’s start, but not into the task before it or past now', () => {
+    expect(A.timeBounds(d0, 'c', 645, 645)).toEqual({ start: [620, 645], end: null });
+    expect(A.find(A.retime(d0, 'c', { start: 625 }, 645, 645), 'c')!.startedAt).toBe(625);
+    expect(A.find(A.retime(d0, 'c', { start: 600 }, 645, 645), 'c')!.startedAt).toBe(620);
+    expect(A.find(A.retime(d0, 'c', { start: 700 }, 645, 645), 'c')!.startedAt).toBe(645);
+  });
+
+  it('moves a done task’s start and finish between its neighbours, a minute apart at least', () => {
+    expect(A.timeBounds(d0, 'b', 645, 645)).toEqual({ start: [570, 619], end: [581, 630] });
+    const d1 = A.retime(d0, 'b', { start: 575, end: 615 }, 645, 645);
+    expect(A.find(d1, 'b')).toMatchObject({ startedAt: 575, endedAt: 615 });
+    expect(A.find(A.retime(d0, 'b', { end: 700 }, 645, 645), 'b')!.endedAt).toBe(630);
+  });
+
+  it('shrinks a pause that no longer fits', () => {
+    const paused = day([t('a', 30, { status: 'done', startedAt: 540, endedAt: 600, pausedFor: 30 })], {
+      dayStarted: 540,
+    });
+    expect(A.find(A.retime(paused, 'a', { start: 590 }, 700, 700), 'a')).toMatchObject({
+      startedAt: 590,
+      pausedFor: 9,
+    });
+  });
+
+  it('moves the day’s start back with an earlier first task, and never after it', () => {
+    expect(A.retime(d0, 'a', { start: 520 }, 645, 645).dayStarted).toBe(520);
+    expect(A.dayStartBounds(d0, 645)).toEqual([0, 540]);
+    expect(A.retimeDay(d0, 600, 645).dayStarted).toBe(540);
+    expect(A.retimeDay(d0, 510, 645).dayStarted).toBe(510);
+  });
+});

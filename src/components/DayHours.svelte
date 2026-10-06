@@ -1,32 +1,56 @@
 <script lang="ts">
   import { planner as P } from '../lib/planner.svelte';
-  import { fNZ, hhmm, hm } from '../lib/time';
+  import { isActive, isPartial } from '../lib/schedule';
+  import { fT, hhmm, hm } from '../lib/time';
+  import TimeAdjust from './TimeAdjust.svelte';
 
-  // Once the day has started only the wrap-up matters; before that, where the plan begins.
+  // Before the day starts: where the plan begins, and the wrap-up. Once it has started: when it
+  // really started (if Start my day was tapped late, or early), and the wrap-up.
   const started = P.day.dayStarted;
+  const bounds = P.dayStartBounds();
+  // The day's tasks on the record, so it shows why the start can't go past the first of them.
+  const done = P.day.items
+    .filter((i) => i.startedAt != null && (isActive(i) || i.status === 'done' || isPartial(i)))
+    .map((i): [number, number] => [i.startedAt!, isActive(i) ? P.n : (i.endedAt ?? i.startedAt!)]);
+  let startedAt = $state(started ?? 0);
   let start = $state(hhmm(P.day.dayStart));
   let wrap = $state(hhmm(P.day.wrap));
-  const from = $derived(started ?? (start ? hm(start) : null));
+  const from = $derived(started != null ? startedAt : start ? hm(start) : null);
   // A wrap-up at or before the start time means the day runs past midnight.
   const nextDay = $derived(from != null && !!wrap && hm(wrap) <= from % 1440);
   function save() {
     if (!start || !wrap) return;
-    P.saveHours(hm(start), hm(wrap) + (nextDay ? 1440 : 0));
+    P.saveHours(hm(start), hm(wrap) + (nextDay ? 1440 : 0), started != null ? startedAt : undefined);
   }
   const note = $derived(
     started != null
-      ? `You started at ${fNZ(started, P.settings.clock24)}. Anything planned past your wrap-up gets flagged.`
+      ? 'Move the start if you began before or after you tapped Start my day. Anything planned past your wrap-up gets flagged.'
       : 'The plan begins here until you tap Start my day. Going past the wrap-up time gets flagged, never blocked.',
   );
 </script>
 
 <div class="head">
-  <span class="h">{started != null ? 'Wrap-up time' : 'Day hours'}</span>
+  <span class="h">Day hours</span>
   <span class="note">{note}</span>
 </div>
 <div class="fields">
   {#if started == null}
     <label>Day starts <input type="time" data-autofocus bind:value={start} /></label>
+  {:else if bounds}
+    <div class="started">
+      <span class="sl">Day started at {fT(startedAt, P.settings.clock24)}</span>
+      <TimeAdjust
+        value={startedAt}
+        range={bounds}
+        others={done}
+        now={P.isToday ? P.n : null}
+        hue="#fb923c"
+        clock24={P.settings.clock24}
+        label="Day started at"
+        late={Math.max(P.day.wrap, P.n)}
+        onchange={(v) => (startedAt = v)}
+      />
+    </div>
   {/if}
   <label
     >Wrap up by
@@ -60,6 +84,15 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+  .started {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 6px;
+  }
+  .sl {
+    font: 400 15px/1.2 var(--font);
   }
   label {
     display: flex;

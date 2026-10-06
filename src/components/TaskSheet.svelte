@@ -8,7 +8,9 @@
   import Fields from './Fields.svelte';
   import KindChips from './KindChips.svelte';
   import KindMark from './KindMark.svelte';
+  import FinishChooser from './FinishChooser.svelte';
   import PostponeChooser from './PostponeChooser.svelte';
+  import RetimeTask from './RetimeTask.svelte';
   import StepBox from './StepBox.svelte';
   import SwitchRow from './SwitchRow.svelte';
   let { id: idProp }: { id: string } = $props();
@@ -31,6 +33,11 @@
   );
   const it = $derived(v?.it);
   const postponeArmed = $derived(P.armed('postpone', id));
+  const finishArmed = $derived(P.armed('finish', id));
+  // Done, or set aside part-way: its times are on the record and can be corrected.
+  const logged = $derived(
+    !!it && it.startedAt != null && (it.status === 'done' || (it.status === 'postponed' && !v?.active)),
+  );
   const delArmed = $derived(P.armed('delete', id));
 
   const repeatOpts = $derived.by(() => {
@@ -138,6 +145,8 @@
           <div class="bar"><div style:width="{v.isOver ? 100 : v.p}%" style:background={barBg}></div></div>
           {#if postponeArmed}
             <PostponeChooser {id} title={it.title} worked={v.w} large />
+          {:else if finishArmed}
+            <FinishChooser {id} title={it.title} worked={v.w} min={it.min} large />
           {:else}
             <div class="ctls">
               <!-- One button that flips, so keyboard focus stays on it. -->
@@ -147,7 +156,7 @@
                 onclick={() => (v.s === 'running' ? P.pause(id) : P.resume(id))}
                 ><span class="g">{v.s === 'running' ? '‖' : '▶'}</span>{v.s === 'running' ? 'Pause' : 'Resume'}</button
               >
-              <button class="ctl done" aria-label="Done {it.title}" onclick={() => P.finish(id)}
+              <button class="ctl done" aria-label="Done {it.title}" onclick={() => P.done(id)}
                 ><span class="g">✓</span>Done</button
               >
               <button class="ctl ghost" aria-label="Postpone {it.title}" onclick={() => P.arm('postpone', id)}
@@ -155,6 +164,14 @@
               >
             </div>
           {/if}
+          <div class="retime"><RetimeTask {id} /></div>
+        </div>
+      {/if}
+
+      {#if logged}
+        <div class="card tight when">
+          <span class="label">When</span>
+          <RetimeTask {id} />
         </div>
       {/if}
 
@@ -467,6 +484,14 @@
   .card.tight {
     padding: 14px 16px;
     gap: 6px;
+  }
+  .card.when {
+    gap: 10px;
+  }
+  /* Under the timer's controls: when it started, to correct it. */
+  .retime {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
   }
   .card.notes {
     gap: 8px;

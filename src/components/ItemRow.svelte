@@ -5,6 +5,7 @@
   import { dL } from '../lib/time';
   import { desktop } from '../lib/ui.svelte';
   import NowLine from './NowLine.svelte';
+  import FinishChooser from './FinishChooser.svelte';
   import PostponeChooser from './PostponeChooser.svelte';
   import Reschedule from './Reschedule.svelte';
   import StepBox from './StepBox.svelte';
@@ -18,12 +19,13 @@
   const dayStarted = $derived(P.day.dayStarted != null);
   const hovered = $derived(desktop.current && P.hover === id);
   const postponeArmed = $derived(P.armed('postpone', id));
+  const finishArmed = $derived(P.armed('finish', id));
   const rsOpen = $derived(!!P.resched && P.resched.id === id && v.missed);
   const showSkip = $derived(P.isToday && !P.locked && hovered && v.s === 'todo' && !v.missed);
 
   type Ctl = { g: string; l: string; k?: 'primary' | 'done' | 'ghost'; on: () => void };
   const controls: Ctl[] | null = $derived.by(() => {
-    if (postponeArmed) return null;
+    if (postponeArmed || finishArmed) return null;
     if (v.missed)
       return rsOpen
         ? null
@@ -34,13 +36,13 @@
     if (v.s === 'running')
       return [
         { g: '‖', l: 'Pause', on: () => P.pause(id) },
-        { g: '✓', l: 'Done', k: 'done', on: () => P.finish(id) },
+        { g: '✓', l: 'Done', k: 'done', on: () => P.done(id) },
         { g: '↷', l: 'Postpone', k: 'ghost', on: () => P.arm('postpone', id) },
       ];
     if (v.s === 'paused')
       return [
         { g: '▶', l: 'Resume', k: 'primary', on: () => P.resume(id) },
-        { g: '✓', l: 'Done', k: 'done', on: () => P.finish(id) },
+        { g: '✓', l: 'Done', k: 'done', on: () => P.done(id) },
         { g: '↷', l: 'Postpone', k: 'ghost', on: () => P.arm('postpone', id) },
       ];
     return null;
@@ -199,6 +201,10 @@
 
   {#if postponeArmed}
     <div class="wide confirm"><PostponeChooser {id} title={it.title} worked={v.active ? v.w : 0} /></div>
+  {/if}
+
+  {#if finishArmed}
+    <div class="wide confirm"><FinishChooser {id} title={it.title} worked={v.w} min={it.min} /></div>
   {/if}
 
   {#if rsOpen}

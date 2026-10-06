@@ -1,7 +1,7 @@
 // Pure transformations of a Day. Each returns a new Day and never mutates its input.
 // `n` is "now" in minutes since the day's local midnight.
 
-import { isActive, isMissed, schedule } from './schedule';
+import { isActive, isMissed, isPartial, schedule } from './schedule';
 import type { Day, Item, Kind } from './types';
 
 export function uid(): string {
@@ -152,6 +152,73 @@ export function finish(day: Day, id: string, n: number): Day {
     pausedFor: i.status === 'paused' ? pausedSoFar(i, n) : i.pausedFor,
     pausedAt: null,
   }));
+}
+
+// ---------- correcting recorded times ----------
+
+/** A range of minutes into the day, inclusive. */
+export type Range = [number, number];
+const clamp = (v: number, [lo, hi]: Range) => Math.min(hi, Math.max(lo, v));
+
+/** Items whose time is on the record: running, paused, done, or set aside part-way. */
+const onRecord = (i: Item) => i.startedAt != null && (isActive(i) || i.status === 'done' || isPartial(i));
+
+/**
+ * How far an item's recorded start (and finish, once it has one) can be moved: not before the
+ * item before it in time had finished, not past the start of the next one or `limit` (now, on
+ * Today), with at least a minute worked. Each range always contains the value it has now.
+ */
+export function timeBounds(day: Day, id: string, n: number, limit: number): { start: Range; end: Range | null } | null {
+  const it = find(day, id);
+  if (!it || !onRecord(it)) return null;
+  const s0 = it.startedAt!;
+  const others = day.items.filter((i) => i.id !== id && onRecord(i));
+  const endOf = (i: Item) => (isActive(i) ? n : (i.endedAt ?? i.startedAt!));
+  const prevEnd = Math.max(0, ...others.filter((i) => i.startedAt! < s0).map(endOf));
+  const nextStart = Math.min(limit, ...others.filter((i) => i.startedAt! > s0).map((i) => i.startedAt!));
+  if (isActive(it)) {
+    // Running or paused: it can't have started later than the time worked allows.
+    const latest = (it.status === 'paused' ? it.pausedAt! : n) - it.pausedFor;
+    return { start: [Math.min(prevEnd, s0), Math.max(s0, Math.min(latest, nextStart))], end: null };
+  }
+  const e0 = it.endedAt ?? s0;
+  return {
+    start: [Math.min(prevEnd, s0), Math.max(s0, e0 - 1)],
+    end: [Math.min(s0 + 1, e0), Math.max(e0, nextStart)],
+  };
+}
+
+/**
+ * Correct when an item started or finished ("I actually started at 9:10"), within timeBounds.
+ * A pause longer than the time left in between shrinks to fit, and a day can't have started
+ * after its tasks did.
+ */
+export function retime(day: Day, id: string, t: { start?: number; end?: number }, n: number, limit: number): Day {
+  const b = timeBounds(day, id, n, limit);
+  const it = find(day, id);
+  if (!b || !it) return day;
+  const start = t.start != null ? clamp(Math.round(t.start), b.start) : it.startedAt!;
+  const patch: Partial<Item> = { startedAt: start };
+  if (b.end) {
+    const end = t.end != null ? clamp(Math.round(t.end), b.end) : it.endedAt!;
+    patch.endedAt = Math.max(end, start + 1);
+    patch.pausedFor = Math.min(it.pausedFor, Math.max(0, patch.endedAt - start - 1));
+  }
+  const next = mapItem(day, id, () => patch);
+  return day.dayStarted != null && start < day.dayStarted ? { ...next, dayStarted: start } : next;
+}
+
+/** When the day can be said to have started: not after its first task started, or `limit`. */
+export function dayStartBounds(day: Day, limit: number): Range | null {
+  if (day.dayStarted == null) return null;
+  const first = Math.min(limit, ...day.items.filter(onRecord).map((i) => i.startedAt!));
+  return [0, Math.max(day.dayStarted, first)];
+}
+
+/** Correct when the day started. */
+export function retimeDay(day: Day, t: number, limit: number): Day {
+  const b = dayStartBounds(day, limit);
+  return b ? { ...day, dayStarted: clamp(Math.round(t), b) } : day;
 }
 
 /** "Mark done" on a missed item: logged at its planned slot, flagged as never timed. */

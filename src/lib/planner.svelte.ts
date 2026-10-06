@@ -50,7 +50,9 @@ export type Sheet =
   | { type: 'install' }
   | { type: 'wrapup' }
   | { type: 'reorder'; id: string; anchor: string; dir: 'up' | 'down' };
-export type ConfirmType = 'postpone' | 'delete' | 'clear' | 'erase' | 'sample';
+export type ConfirmType = 'postpone' | 'delete' | 'clear' | 'erase' | 'sample' | 'finish';
+/** Running this far over before Done asks when it was really finished (minutes). */
+export const ASK_FINISH_OVER = 5;
 export interface Confirm {
   type: ConfirmType;
   id: string;
@@ -744,6 +746,41 @@ export class Planner {
     this.update((d) => A.finish(d, id, this.n), `${this.item(id)?.title} done`);
   }
 
+  /**
+   * The Done button. Well over time, the task may have been finished a while ago and Done tapped
+   * late, so ask: when time was up, or just now (see finishAt).
+   */
+  done(id: string): void {
+    const it = this.item(id);
+    if (it && isActive(it) && worked(it, this.n) - it.min >= ASK_FINISH_OVER) this.arm('finish', id);
+    else this.finish(id);
+  }
+
+  /** When an over-time task's time was up: where it would have ended without running over. */
+  timeUpAt(id: string): number | null {
+    const it = this.item(id);
+    return it && isActive(it) ? it.startedAt! + it.pausedFor + it.min : null;
+  }
+
+  /** Done, logged as finished at `at` (no later than now). */
+  finishAt(id: string, at: number): void {
+    this.confirm = null;
+    const end = Math.min(at, this.n);
+    this.update((d) => A.finish(d, id, end), `${this.item(id)?.title} done at ${fT(end, this.settings.clock24)}`);
+  }
+
+  // ---------- correcting recorded times ----------
+
+  /** How far a task's recorded start and finish can be moved (now is the limit). */
+  timeBounds(id: string): { start: A.Range; end: A.Range | null } | null {
+    return A.timeBounds(this.day, id, this.n, this.n);
+  }
+
+  /** "I actually started at 9:10" / "I finished at 9:50": correct a task's recorded times. */
+  retime(id: string, t: { start?: number; end?: number }): void {
+    this.update((d) => A.retime(d, id, t, this.n, this.n));
+  }
+
   markDone(id: string, start: number, end: number): void {
     this.resched = null;
     this.update((d) => A.markDone(d, id, start, end), `${this.item(id)?.title} marked done`);
@@ -1077,9 +1114,23 @@ export class Planner {
 
   // ---------- day ----------
 
-  saveHours(start: number, wrap: number): void {
+  /**
+   * The day hours sheet: where the plan begins and the wrap-up, or once the day is under way,
+   * when it really started (`started`) and the wrap-up. A flexible day's plan begins when it
+   * started.
+   */
+  saveHours(start: number, wrap: number, started?: number): void {
     this.sheet = null;
-    this.update((d) => ({ ...d, dayStart: start, wrap }), 'Day hours saved');
+    this.update((d) => {
+      if (started == null || d.dayStarted == null) return { ...d, dayStart: start, wrap };
+      const next = A.retimeDay(d, started, this.n);
+      return { ...next, wrap, ...(this.settings.flexStart ? { dayStart: next.dayStarted! } : {}) };
+    }, 'Day hours saved');
+  }
+
+  /** The earliest and latest the day can be said to have started. */
+  dayStartBounds(): A.Range | null {
+    return A.dayStartBounds(this.day, this.n);
   }
 
   clearDay(): void {
